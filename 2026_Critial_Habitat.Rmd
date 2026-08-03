@@ -8,6 +8,7 @@ editor_options:
 ---
 
 # Approach:
+* try crs4326 
 * Goal: a table that records % agriculture from the simulations (or summary statistics) for each UNIQUE_ID 
 
 * STEP 1: Make individual rasters for each species Critical Habitat or range  (731 for CH and 1515 species total) for the CONUS that overlap with available land.
@@ -1060,6 +1061,9 @@ al_dir = "D:/ArcGIS/Collaborations/2025_Critical_Habitat/Available_Land/"
 #al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_63Facil_stars3.rds'))
 #al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_63Facil_stars4.rds')) # see code below
 #al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_corn_biorefineries.rds')) # see code below
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_corn_biorefineries2.rds')) # see code below
+
+
 
 # st_res(al_stars1)
 # st_res(al_stars.)
@@ -1578,6 +1582,37 @@ writeRaster(al_r_mask, paste0(al_dir,"AvailableLand23_raster_3acre_Pixels_over15
 
 ```
 
+# Map 
+```{r}
+
+library(spatialEco)
+
+clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/Projects/Collaborations/Clark/"
+
+
+soy_s = st_read(paste0(clark_dir,'Spatial/Crushing_Plant_Facilities_50mi_buffer.shp'))
+
+#soy <- st_transform(bior, CRS("+init=epsg:26978"))
+
+
+projection(states_conus)
+projection(soy_s)
+
+# Dissolve overlapping circles
+soy_diss <- sf_dissolve(soy_s, overlaps = TRUE)
+soy_diss = st_as_sf(soy_diss)
+
+
+ggplot() +
+  geom_sf(data = subset(soy_diss,!is.na(diss)),
+          mapping = aes(color='red')) +
+    theme(legend.position="none")+
+  geom_sf(data=states_conus,fill=NA,color='black')
+
+
+```
+
+
 #---
 # Corn Biorefineries
 ```{r}
@@ -1637,7 +1672,7 @@ st_write(bio_b, paste0(clark_dir,'Spatial/Corn_biorefineries_50mi_buffer.shp'),l
 
 ```
 
-# Clip AL to Biorefineries Buffer
+# Clip AL to Biorefineries Buffer (epsg:5070)
 * This is the code I am using for generating the AL clipped layer for the analysis
 ```{r}
 
@@ -1646,29 +1681,41 @@ clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/
 bior = st_read(paste0(clark_dir,'Spatial/Corn_biorefineries_50mi_buffer.shp'))
 bior <- st_transform(bior, CRS("+init=epsg:5070"))
 
+#al_stars = readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp.rds'))
 
 #-------------------------------------------------------------------------------
 
 # Clip al_stars raster to just the buffer areas
 projection(bior)
-projection(al_stars)
+#projection(al_stars)
+projection(as(al_stars,"Raster"))
 
-al_stars2 <- st_transform(al_stars, CRS("+init=epsg:5070"))
+#bior2 = st_transform(bior, CRS("+init=epsg:26978")) # so that it will match the available land file (though it is NAD83/Kansas South)
+#projection(bior2)
+#projection(as(al_stars,"Raster"))
+
+
+#al_stars2 <- st_transform(al_stars, CRS("+init=epsg:5070"))
 #al_r = as(al_stars2, "Raster") # stars to raster
 al_r = as(al_stars, "Raster") # stars to raster
-
-
 projection(al_r)
 projection(bior)
 
 # Reproject to a new CRS (this takes a long time)
-new_crs <- CRS("+init=epsg:5070")
-al_r2 <- projectRaster(al_r, crs = new_crs)
+#new_crs <- CRS("+init=epsg:5070")
+#al_r2 <- projectRaster(al_r, crs = new_crs)
+#writeRaster(al_r2, paste0(al_dir,'AvailableLand23_raster_3acre_over15acrePatches_simp_5070_rast.tif'), format = "GTiff", overwrite = TRUE)
+
+al_r2 <- raster(paste0(al_dir,'AvailableLand23_raster_3acre_over15acrePatches_simp_5070_rast.tif'))
+
 projection(al_r2)
 projection(bior)
 
+start_time <- Sys.time()
 al_r_crop <- crop(al_r2, extent(bior))
 al_r_mask <- mask(al_r_crop, bior)
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 11.61525 mins
 
 # convert back to stars object
 al_stars_clip = st_as_stars(al_r_mask)
@@ -1676,20 +1723,98 @@ al_stars_clip = st_as_stars(al_r_mask)
 st_res(al_stars_clip)
 res(al_r_mask)
 
-al_stars_clip2 <- st_transform(al_stars_clip, CRS("+init=epsg:5070"))
-
-projection(al_stars_clip)
-projection(al_stars_clip2)
 projection(al_r_mask)
 projection(bior)
 
-saveRDS(al_stars_clip, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_corn_biorefineries2.rds'))
+#al_stars_clip2 <- st_transform(al_stars_clip, CRS("+init=epsg:5070"))
+
+#projection(al_stars_clip)
+#projection(al_stars_clip2)
+#projection(al_r_mask)
+#projection(bior)
+
+# Convert to just stars and not stars_proxy
+al_stars_clip2 = st_as_stars(al_stars_clip)
+
+saveRDS(al_stars_clip2, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_corn_biorefineries2.rds'))
 
 writeRaster(al_r_mask, paste0(al_dir,"AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_corn_biorefineries2.tif"), format = "GTiff", overwrite = TRUE)
 
 
 ```
 
+# Clip AL to Biorefineries Buffer (epsg:26978)
+* This is the code I am using for generating the AL clipped layer for the analysis
+```{r}
+
+al_stars = readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp.rds'))
+
+clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/Projects/Collaborations/Clark/"
+
+bior = st_read(paste0(clark_dir,'Spatial/Corn_biorefineries_50mi_buffer.shp'))
+bior <- st_transform(bior, CRS("+init=epsg:26978"))
+
+#al_stars = readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp.rds'))
+
+#-------------------------------------------------------------------------------
+
+# Clip al_stars raster to just the buffer areas
+projection(bior)
+#projection(al_stars)
+projection(as(al_stars,"Raster"))
+
+#bior2 = st_transform(bior, CRS("+init=epsg:26978")) # so that it will match the available land file (though it is NAD83/Kansas South)
+#projection(bior2)
+#projection(as(al_stars,"Raster"))
+
+
+#al_stars2 <- st_transform(al_stars, CRS("+init=epsg:5070"))
+#al_r = as(al_stars2, "Raster") # stars to raster
+al_r = as(al_stars, "Raster") # stars to raster
+projection(al_r)
+projection(bior)
+
+# Reproject to a new CRS (this takes a long time)
+#new_crs <- CRS("+init=epsg:5070")
+#al_r2 <- projectRaster(al_r, crs = new_crs)
+#writeRaster(al_r2, paste0(al_dir,'AvailableLand23_raster_3acre_over15acrePatches_simp_5070_rast.tif'), format = "GTiff", overwrite = TRUE)
+
+#al_r2 <- raster(paste0(al_dir,'AvailableLand23_raster_3acre_over15acrePatches_simp_5070_rast.tif'))
+
+#projection(al_r2)
+#projection(bior)
+
+start_time <- Sys.time()
+al_r_crop <- crop(al_r, extent(bior))
+al_r_mask <- mask(al_r_crop, bior)
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 12.71897 mins
+
+# convert back to stars object
+al_stars_clip = st_as_stars(al_r_mask)
+
+st_res(al_stars_clip)
+res(al_r_mask)
+
+projection(al_r_mask)
+projection(bior)
+
+#al_stars_clip2 <- st_transform(al_stars_clip, CRS("+init=epsg:5070"))
+
+#projection(al_stars_clip)
+#projection(al_stars_clip2)
+#projection(al_r_mask)
+#projection(bior)
+
+# Convert to just stars and not stars_proxy
+al_stars_clip2 = st_as_stars(al_stars_clip)
+
+saveRDS(al_stars_clip2, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs26978_corn_biorefineries2.rds'))
+
+writeRaster(al_r_mask, paste0(al_dir,"AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs26978_corn_biorefineries2.tif"), format = "GTiff", overwrite = TRUE)
+
+
+```
 
 #---
 # Protected Areas (PAD-US)
@@ -2950,7 +3075,7 @@ gc()
 ```
 
 #--
-# Rasterize for Facilities Analysis
+# Rasterize for Facilities & Biorefineries Analysis
 ```{r}
 
 pixsize1 = 110.1844  # units = meters (110.1844 m for 3 acre grid)
@@ -2969,9 +3094,9 @@ CH = ch_fws # ch_fws, ch_buff
 nrow(CH) # 435, 428 CH buff
 length(unique(CH$sciname)) # 428
 
-#CH <- st_transform(CH, CRS("+init=epsg:5070"))
+CH <- st_transform(CH, CRS("+init=epsg:5070"))
 
-CH = st_transform(CH, CRS("+init=epsg:26978")) # so that it will match the available land file
+#CH = st_transform(CH, CRS("+init=epsg:26978")) # so that it will match the available land file
 projection(CH)
 projection(as(al_stars, "Raster"))
 
@@ -3006,7 +3131,8 @@ gc()
 
 
 
-saveRDS(CH_list_r, file=paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+#saveRDS(CH_list_r, file=paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+saveRDS(CH_list_r, file=paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs5070.rds'))
 
 #class(CH_list_r[[4]])
 
@@ -4816,12 +4942,26 @@ gc()
 
 ```
 
-# **Overlay Biorefineries - CH (221 Corn Biorefinderies Facilities)
+# Mapview Bior
+```{r}
+
+CH_list_r1 = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs5070.rds'))
+CH_list_r2 = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+
+
+mapview(al_stars,col.regions='grey')+
+  mapview(CH_list_r1[[1]],color='blue',col.regions='blue')
+  
+
+```
+
+
+# **Overlay Biorefineries (crs5070 - CH (221 Corn Biorefinderies Facilities)
 *!!! if the extents do not line up, then check if the resolution (pixel sizes) are different between the rasters
 ```{r}
 
 
-#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs5070.rds'))
 #length(CH_list_r) # 435
 
 library(parallel)
@@ -4830,8 +4970,12 @@ library(foreach)
 library(raster)
 library(sf)
 library(stars)
-# projection(as(CH_list_r[[1]],"Raster"))
-# projection(as(al_stars,"Raster"))
+temp = CH_list_r[[1]]
+#temp2 = st_transform(temp, crs = 5070)
+projection(as(temp,"Raster"))
+projection(as(al_stars,"Raster"))
+#projection(as(temp2,"Raster"))
+
 # res(as(CH_list_r[[1]],"Raster"))
 # res(as(al_stars,"Raster"))
 
@@ -4844,18 +4988,238 @@ library(stars)
 rcl3 <- data.frame(is = c(0:2000), becomes = c(NA)) # NA if outside Available land
 
 #-------------------------------------------------------------------------------
-# Need to change projection (since this is taking too long and uses too much memory, changing CH projection)
 al_r = as(al_stars, "Raster") # stars to raster
-# new_crs <- CRS("+init=epsg:5070")
-# al_r <- projectRaster(al_r1, crs = new_crs)
-# res(al_r)
-projection(al_r)
-temp = crs(al_r)
-temp = st_crs(test)
-temp$
 
-print(st_crs(test)$input)
-print(st_crs(test)$wkt)
+projection(as(temp,"Raster"))
+projection(as(al_r,"Raster"))
+
+#-------------------------------------------------------------------------------
+PARTS = list()
+for(i in 1:87){ # 87 parts needed to get 435 species (5*87=435)
+  PARTS[[i]] = seq(1,5)+i*5-5 # generates list of sequences
+}
+
+start_time <- Sys.time()
+
+al_CH_r_parts = list()
+for (z in 1:length(PARTS)){
+
+  print(paste0('part ',z,' of ',length(PARTS)))
+  start_time2 <- Sys.time()
+
+  species_list_part = 
+    readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs5070.rds'))[PARTS[[z]]]
+
+
+numCores <- detectCores()
+registerDoParallel(numCores-31) # if use more than 3 cores it often crashes
+
+CH_al_r = foreach(i=1:length(species_list_part)) %dopar% {
+  library(raster)
+  library(stars)
+  
+  #CH_stars. = species_list_part[[i]]
+  #CH_stars = st_transform(CH_stars., CRS("+init=epsg:26978"))
+  CH_stars = species_list_part[[i]]
+
+  #st_res(CH_stars)
+  #st_res(al_stars)
+  
+  # crop full available land to get just extent of Species land
+  #al_stars2 <- st_warp(al_stars, dest = CH_stars) # fixes resolution issue so that they match
+  #al_r = as(al_stars2, "Raster") # stars to raster
+  #st_res(al_stars2)
+  CH_r = as(CH_stars, "Raster") # stars to raster
+  
+  # temp = getValues(CH_r)
+  # temp2 = data.frame(value = temp)
+  # temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  # names(temp3)[1]= "value"
+  # levels(factor(temp3$value))
+  # sum(temp3$value>0) # 529 pixels
+  # sum(temp3$value>0)*3 # 1587 acres (checks out)
+
+  # projection(al_r)
+  # projection(CH_r)
+  # res(al_r)
+  # res(CH_r)
+
+  # Flag if different resolutions
+  if (identical(round(res(al_r)[1],4), round(res(CH_r)[1],4)) != TRUE) {
+  warning("!!Warning!! rasters don't have same resolution!!")
+    }
+  
+  
+  ## ERROR HANDLING (if no overlap between rasters)
+  #al_crop_r = crop(al_r,extent(CH_r))#,snap='in') 
+  al_crop_r <- tryCatch({ # ERROR HANDLING 
+    al_crop_r = crop(al_r,extent(CH_r))
+    }, error = function(e) {
+      al_r })
+  
+   ## ERROR HANDLING (if no overlap between rasters)
+  #CH_r = crop(CH_r,extent(al_r)) 
+  CH_r <- tryCatch({ # ERROR HANDLING 
+    CH_r = crop(CH_r,extent(al_r)) 
+    }, error = function(e) {
+      CH_r })
+  
+  
+  ## ERROR HANDLING (if no overlap between rasters)
+  # If the al_crop_r raster ends up being smaller than the species raster, need to recrop using al raster
+  #CH_r = crop(CH_r,extent(al_crop_r)) 
+  CH_r <- tryCatch({ # ERROR HANDLING 
+    CH_r = crop(CH_r,extent(al_crop_r)) 
+    }, error = function(e) {
+      CH_r })
+  
+  #dim(CH_r)
+  #dim(al_crop_r)
+
+  # convert back to stars object
+  al_crop_st = st_as_stars(al_crop_r)
+  CH_st = st_as_stars(CH_r)
+  
+  # Modify the offset & x/y to get matching dimensions
+  st_dimensions(al_crop_st)$x$offset = st_dimensions(CH_st)$x$offset 
+  st_dimensions(al_crop_st)$y$offset = st_dimensions(CH_st)$y$offset
+
+  al_crop_st = st_as_stars(al_crop_st) # if need to convert from stars_proxy to stars
+  CH_st = st_as_stars(CH_st) # if need to convert from stars_proxy to stars
+  
+  # Modify the offset & x/y to get matching dimensions (need to redo if stars_proxy issue)
+  st_dimensions(al_crop_st)$x$offset = st_dimensions(CH_st)$x$offset 
+  st_dimensions(al_crop_st)$y$offset = st_dimensions(CH_st)$y$offset
+
+  # Check values of al raster
+  # temp = getValues(al_crop_r)
+  # temp2 = data.frame(value = temp)
+  # temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  # names(temp3)[1]= "value"
+  # sum(temp3$value<0) # 916839 pixels
+  # sum(temp3$value<0)*3 # 2750517 acres
+  
+  # make sure values for AL are all either 0 or -2000
+  al_crop_st2 = al_crop_st
+  al_crop_st2[al_crop_st2 <0 ] <- -2000 
+  
+  
+  # # Check values of al raster
+  # temp = getValues(as(al_crop_st2,"Raster"))
+  # temp2 = data.frame(value = temp)
+  # temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  # names(temp3)[1]= "value"
+  # levels(factor(temp3$value))
+  # sum(temp3$value<0) # 916839 pixels
+  # sum(temp3$value<0)*3 # 2750517 acres
+  # 
+  # # # Check values of al raster
+  # temp = getValues(as(CH_st,"Raster"))
+  # temp2 = data.frame(value = temp)
+  # temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  # names(temp3)[1]= "value"
+  # levels(factor(temp3$value))
+  # sum(temp3$value<0) # 916839 pixels
+  # sum(temp3$value<0)*3 # 2750517 acres
+  
+  #-----------------------------------------------------------------------------
+  # Combine the Rasters
+  ## ERROR HANDLING (if no overlap between rasters & dimensions don't match)
+  # If the al_crop_r raster ends up being smaller than the species raster, need to recrop using al raster
+  #CH_r = crop(CH_r,extent(al_crop_r)) 
+  al_CH_r3 <- tryCatch({ # ERROR HANDLING (in case all same value)
+    c = c(al_crop_st2, CH_st, along=3)
+    al_CH = st_apply(c, 1:2, sum)
+    al_CH_r = as(al_CH, "Raster") # stars to raster
+    
+    # Reclassify (zeros are NA's from Available Land)
+    # All positive values also become NA because those are species pixels not on available land
+    # only negative values are critical habitat on available land.
+    al_CH_r2 = reclassify(al_CH_r,rcl=rcl3)
+    
+    # Reclassify again (to get raster values back to "CH_ID")
+    # >0 = species that overlaps with available land for specific species
+    # 0 = available land without species
+    #al_CH_r2+2000 # a whole number greater than total number of species
+    al_CH_r3 = al_CH_r2+2000 # used only for manually doing this one species at a time
+   
+    }, error = function(e) {
+      al_CH_r3 <- raster(nrows=10, ncols=10)
+      al_CH_r3[] <- 0 # Assign NA to all cells
+      al_CH_r3 = raster(al_CH_r3)
+      })
+  
+  # Check values
+  # temp = getValues(al_CH_r3)
+  # summary(temp)
+  # temp2 = data.frame(value = temp)
+  # temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  # names(temp3)[1]= "value"
+  # levels(factor(temp3$value))
+  # sum(temp3$value>0) # 916839 pixels
+  # sum(temp3$value>0)*3 # 2750517 acres
+  
+}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+#al_CH_r_parts[[z]]=CH_al_r # creating a list of lists
+saveRDS(CH_al_r, file=paste0(CH_dir,'Overlays/Biorefineries/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
+#rm(al_CH_r3)
+rm(CH_al_r)
+gc()
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 2.408944 hours, for 435 CH species at 3acre
+
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+####
+
+```
+
+# **Overlay Biorefineries (crs26978 - CH (221 Corn Biorefinderies Facilities)
+*!!! if the extents do not line up, then check if the resolution (pixel sizes) are different between the rasters
+```{r}
+
+al_dir = "D:/ArcGIS/Collaborations/2025_Critical_Habitat/Available_Land/"
+
+#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+#length(CH_list_r) # 435
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs26978_corn_biorefineries2.rds')) # see code below
+
+
+library(parallel)
+library(doParallel)
+library(foreach)
+library(raster)
+library(sf)
+library(stars)
+#temp = CH_list_r[[1]]
+#temp2 = st_transform(temp, crs = 5070)
+#projection(as(temp,"Raster"))
+#projection(as(al_stars,"Raster"))
+#projection(as(temp2,"Raster"))
+
+# res(as(CH_list_r[[1]],"Raster"))
+# res(as(al_stars,"Raster"))
+
+# Determine which part a species is found
+#5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+#al_stars_ <- st_transform(al_stars, CRS("+init=epsg:5070"))
+#st_res(al_stars_)
+
+rcl3 <- data.frame(is = c(0:2000), becomes = c(NA)) # NA if outside Available land
+
+#-------------------------------------------------------------------------------
+al_r = as(al_stars, "Raster") # stars to raster
+
+#projection(as(temp,"Raster"))
+projection(as(al_r,"Raster"))
 
 #-------------------------------------------------------------------------------
 PARTS = list()
@@ -5028,13 +5392,13 @@ CH_al_r = foreach(i=1:length(species_list_part)) %dopar% {
 stopImplicitCluster()
 gc()
 #al_CH_r_parts[[z]]=CH_al_r # creating a list of lists
-saveRDS(CH_al_r, file=paste0(CH_dir,'Overlays/Facilities/Crushing/Overlay_FWS_CH_3acre_63CrushingFacilities_part',z,'.rds'))
+saveRDS(CH_al_r, file=paste0(CH_dir,'Overlays/Biorefineries2/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
 #rm(al_CH_r3)
 rm(CH_al_r)
 gc()
 }
 end_time <- Sys.time(); end_time - start_time
-# Time difference of 5.715128 hours, for 435 CH species at 3acre
+# Time difference of 5.218871 hours, for 435 CH species at 3acre
 
 
 # When you're done, clean up the cluster
@@ -7112,6 +7476,546 @@ write.csv(overlayarea,paste0(CH_dir,'Simulations/Facilities/Crushing/Overlay_Are
 
 
 ```
+
+#--
+# Sim Bior - 1 Million acres
+* if Sample 1000000 acres with 3 acre grid size, 1254667 3 acre pixel
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+```{r}
+
+library(parallel)
+library(doParallel)
+library(foreach)
+
+# Create Table representing number of pixels/ag plots in each of the 3 categories:
+# 1. Species land not overlapping with Available land
+# 2. Available land not overlapping with species land
+# 3. Species land overlapping with available land
+
+sampsize = 333333 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
+iterations = 500
+AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Biorefineries/Overlay_FWS_CH_3acre_CornBiorefine_part.rds'))
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Biorefineries/Overlay_FWS_CH_3acre_CornBiorefine_part.rds'))
+#length(overlay_list) # 20 CH, 20 Range
+
+#test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
+
+# Determine which part a species is found
+5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+
+num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files
+
+tableoverlay_all = list()
+start_time <- Sys.time()
+# tableoverlay_all = data.frame(SPEC_ID = NA, 
+#                           SPEC_yes_AL = NA)
+for (z in 1:num_files){
+
+  print(paste0('part ',z,' of ',num_files))
+
+  overlay_part =
+  readRDS(paste0(CH_dir,'Overlays/Biorefineries2/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
+
+# Create a dataframe to contain the overlay information to use in simulations
+tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
+                          SPEC_yes_AL = rep(NA,length(overlay_part)))
+for(i in 1:length(overlay_part)){
+  temp <- tryCatch({ # ERROR HANDLING (in case all same value)
+    getValues(overlay_part[[i]])
+    }, error = function(e) {
+      NA })
+  temp2 = data.frame(value = temp)
+  temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  names(temp3)[1]= "value"
+  temp3$valueNot0 = ifelse(temp3$value>0,1,0)
+  tableoverlay$SPEC_ID[i] = i + z*5-5 # use if there are 5 files in each part (z)
+  #tableoverlay$SPEC_yes_AL[i] = sum(temp3$value>0) # this is summing values, whereas I just need to sub freq of values > 0
+  tableoverlay$SPEC_yes_AL[i] = sum(temp3$valueNot0>0) # this is summing values, whereas I just need to sub freq of values > 0
+}
+tableoverlay_all[[z]] = tableoverlay
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 52.86665 secs
+
+#tableoverlay_all2 = data.frame(unlist(tableoverlay_all))
+tableoverlay_all2 = bind_rows(tableoverlay_all)
+tableoverlay_all2$SPEC_ID = seq(1:nrow(tableoverlay_all2))
+tableoverlay = tableoverlay_all2
+dim(tableoverlay)
+#-------------------------------------------------------------------------------
+# Add on Amount of available land not intersected with habitat/watershed
+tableoverlay$AL_no_SPEC =  AL_pixels- tableoverlay$SPEC_yes_AL
+
+# Remove species/shed with no intersection
+tableoverlay = tableoverlay[tableoverlay$SPEC_yes_AL>0,]
+dim(tableoverlay) # 58
+
+ID_LIST = unique(data.frame(SPEC_ID = tableoverlay$SPEC_ID))
+#tableoverlay$samp_SPEC_yes_AL = NA
+
+#-------------------------------------------------------------------------------
+# Create DF with empty columns using a loop for each ID
+tableoverlay2 = ID_LIST
+
+for (i in 1:iterations) {
+  new_col_name <- paste0("samp_", i) # Create unique column names
+  tableoverlay2[[new_col_name]] <- NA 
+}
+
+nrow(tableoverlay2) # 58
+
+numCores <- detectCores()
+registerDoParallel(numCores-28) #
+
+start_time <- Sys.time()
+tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
+  
+  DF_spec = tableoverlay2[i,]
+  
+  for(j in 1:iterations){
+  print(paste0('SPEC ',i,' iteration ',j))
+   
+  temp = c(#rep("SPEC_no_AL",tableoverlay$SPEC_no_AL[i]),
+               rep("SPEC_yes_AL",tableoverlay$SPEC_yes_AL[i]),
+              rep("AL_no_SPEC",tableoverlay$AL_no_SPEC[i]))
+   random_sample <- sample(temp, size = sampsize,replace=F)
+   
+   # Counts number of 30 acre pixel cells randomly sampled 
+   n_SPEC_yes_AL = sum(random_sample == 'SPEC_yes_AL')
+   DF_spec[[paste0("samp_", j)]] = n_SPEC_yes_AL
+  }
+  tableoverlay3 = DF_spec
+}
+end_time <- Sys.time(); end_time - start_time
+
+# Time difference of 41.83788 mins, 3 acre, 58 species, 4 cores
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+CH_SPEC <- do.call(rbind, tableoverlay3)
+#---------------------------------------------------------------------------------------
+# Get are of intersection/overlay for each species
+overlayarea = tableoverlay
+overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
+
+#---------------------------------------------------------------------------------------
+
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine.csv'),row.names=F)
+
+
+```
+
+# Sim Bior - 2 Million acres
+* if Sample 2000000 acres with 3 acre grid size, 666667 3 acre pixel
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+```{r}
+
+library(parallel)
+library(doParallel)
+library(foreach)
+
+# Create Table representing number of pixels/ag plots in each of the 3 categories:
+# 1. Species land not overlapping with Available land
+# 2. Available land not overlapping with species land
+# 3. Species land overlapping with available land
+
+sampsize = 666667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
+iterations = 500
+AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
+#length(overlay_list) # 20 CH, 20 Range
+
+#test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
+
+# Determine which part a species is found
+5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+
+num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files
+
+tableoverlay_all = list()
+start_time <- Sys.time()
+# tableoverlay_all = data.frame(SPEC_ID = NA, 
+#                           SPEC_yes_AL = NA)
+for (z in 1:num_files){
+
+  print(paste0('part ',z,' of ',num_files))
+
+  overlay_part =
+  readRDS(paste0(CH_dir,'Overlays/Biorefineries2/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
+
+# Create a dataframe to contain the overlay information to use in simulations
+tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
+                          SPEC_yes_AL = rep(NA,length(overlay_part)))
+for(i in 1:length(overlay_part)){
+  temp <- tryCatch({ # ERROR HANDLING (in case all same value)
+    getValues(overlay_part[[i]])
+    }, error = function(e) {
+      NA })
+  temp2 = data.frame(value = temp)
+  temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  names(temp3)[1]= "value"
+  temp3$valueNot0 = ifelse(temp3$value>0,1,0)
+  tableoverlay$SPEC_ID[i] = i + z*5-5 # use if there are 5 files in each part (z)
+  #tableoverlay$SPEC_yes_AL[i] = sum(temp3$value>0) # this is summing values, whereas I just need to sub freq of values > 0
+  tableoverlay$SPEC_yes_AL[i] = sum(temp3$valueNot0>0) # this is summing values, whereas I just need to sub freq of values > 0
+}
+tableoverlay_all[[z]] = tableoverlay
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 52.86665 secs
+
+#tableoverlay_all2 = data.frame(unlist(tableoverlay_all))
+tableoverlay_all2 = bind_rows(tableoverlay_all)
+tableoverlay_all2$SPEC_ID = seq(1:nrow(tableoverlay_all2))
+tableoverlay = tableoverlay_all2
+#-------------------------------------------------------------------------------
+# Add on Amount of available land not intersected with habitat/watershed
+tableoverlay$AL_no_SPEC =  AL_pixels- tableoverlay$SPEC_yes_AL
+
+# Remove species/shed with no intersection
+tableoverlay = tableoverlay[tableoverlay$SPEC_yes_AL>0,]
+dim(tableoverlay) # 58
+
+ID_LIST = unique(data.frame(SPEC_ID = tableoverlay$SPEC_ID))
+#tableoverlay$samp_SPEC_yes_AL = NA
+
+#-------------------------------------------------------------------------------
+# Create DF with empty columns using a loop for each ID
+tableoverlay2 = ID_LIST
+
+for (i in 1:iterations) {
+  new_col_name <- paste0("samp_", i) # Create unique column names
+  tableoverlay2[[new_col_name]] <- NA 
+}
+
+nrow(tableoverlay2) # 58
+
+numCores <- detectCores()
+registerDoParallel(numCores-28) #
+
+start_time <- Sys.time()
+tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
+  
+  DF_spec = tableoverlay2[i,]
+  
+  for(j in 1:iterations){
+  print(paste0('SPEC ',i,' iteration ',j))
+   
+  temp = c(#rep("SPEC_no_AL",tableoverlay$SPEC_no_AL[i]),
+               rep("SPEC_yes_AL",tableoverlay$SPEC_yes_AL[i]),
+              rep("AL_no_SPEC",tableoverlay$AL_no_SPEC[i]))
+   random_sample <- sample(temp, size = sampsize,replace=F)
+   
+   # Counts number of 30 acre pixel cells randomly sampled 
+   n_SPEC_yes_AL = sum(random_sample == 'SPEC_yes_AL')
+   DF_spec[[paste0("samp_", j)]] = n_SPEC_yes_AL
+  }
+  tableoverlay3 = DF_spec
+}
+end_time <- Sys.time(); end_time - start_time
+
+# Time difference of 49.66572 mins, 3 acre, 58 species, 4 cores
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+CH_SPEC <- do.call(rbind, tableoverlay3)
+#---------------------------------------------------------------------------------------
+# Get are of intersection/overlay for each species
+overlayarea = tableoverlay
+overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
+
+#---------------------------------------------------------------------------------------
+
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine.csv'),row.names=F)
+
+
+```
+
+# Sim Bior - 3.764 Million acres
+* if Sample 3764000 acres with 3 acre grid size, 1254667 3 acre pixel
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+```{r}
+
+library(parallel)
+library(doParallel)
+library(foreach)
+
+# Create Table representing number of pixels/ag plots in each of the 3 categories:
+# 1. Species land not overlapping with Available land
+# 2. Available land not overlapping with species land
+# 3. Species land overlapping with available land
+
+sampsize = 1254667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
+iterations = 500
+AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
+#length(overlay_list) # 20 CH, 20 Range
+
+#test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
+
+# Determine which part a species is found
+5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+
+num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files
+
+tableoverlay_all = list()
+start_time <- Sys.time()
+# tableoverlay_all = data.frame(SPEC_ID = NA, 
+#                           SPEC_yes_AL = NA)
+for (z in 1:num_files){
+
+  print(paste0('part ',z,' of ',num_files))
+
+  overlay_part =
+  readRDS(paste0(CH_dir,'Overlays/Biorefineries2/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
+
+# Create a dataframe to contain the overlay information to use in simulations
+tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
+                          SPEC_yes_AL = rep(NA,length(overlay_part)))
+for(i in 1:length(overlay_part)){
+  temp <- tryCatch({ # ERROR HANDLING (in case all same value)
+    getValues(overlay_part[[i]])
+    }, error = function(e) {
+      NA })
+  temp2 = data.frame(value = temp)
+  temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  names(temp3)[1]= "value"
+  temp3$valueNot0 = ifelse(temp3$value>0,1,0)
+  tableoverlay$SPEC_ID[i] = i + z*5-5 # use if there are 5 files in each part (z)
+  #tableoverlay$SPEC_yes_AL[i] = sum(temp3$value>0) # this is summing values, whereas I just need to sub freq of values > 0
+  tableoverlay$SPEC_yes_AL[i] = sum(temp3$valueNot0>0) # this is summing values, whereas I just need to sub freq of values > 0
+}
+tableoverlay_all[[z]] = tableoverlay
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 52.86665 secs
+
+#tableoverlay_all2 = data.frame(unlist(tableoverlay_all))
+tableoverlay_all2 = bind_rows(tableoverlay_all)
+tableoverlay_all2$SPEC_ID = seq(1:nrow(tableoverlay_all2))
+tableoverlay = tableoverlay_all2
+#-------------------------------------------------------------------------------
+# Add on Amount of available land not intersected with habitat/watershed
+tableoverlay$AL_no_SPEC =  AL_pixels- tableoverlay$SPEC_yes_AL
+
+# Remove species/shed with no intersection
+tableoverlay = tableoverlay[tableoverlay$SPEC_yes_AL>0,]
+dim(tableoverlay) # 58
+
+ID_LIST = unique(data.frame(SPEC_ID = tableoverlay$SPEC_ID))
+#tableoverlay$samp_SPEC_yes_AL = NA
+
+#-------------------------------------------------------------------------------
+# Create DF with empty columns using a loop for each ID
+tableoverlay2 = ID_LIST
+
+for (i in 1:iterations) {
+  new_col_name <- paste0("samp_", i) # Create unique column names
+  tableoverlay2[[new_col_name]] <- NA 
+}
+
+nrow(tableoverlay2) # 58
+
+numCores <- detectCores()
+registerDoParallel(numCores-28) #
+
+start_time <- Sys.time()
+tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
+  
+  DF_spec = tableoverlay2[i,]
+  
+  for(j in 1:iterations){
+  print(paste0('SPEC ',i,' iteration ',j))
+   
+  temp = c(#rep("SPEC_no_AL",tableoverlay$SPEC_no_AL[i]),
+               rep("SPEC_yes_AL",tableoverlay$SPEC_yes_AL[i]),
+              rep("AL_no_SPEC",tableoverlay$AL_no_SPEC[i]))
+   random_sample <- sample(temp, size = sampsize,replace=F)
+   
+   # Counts number of 30 acre pixel cells randomly sampled 
+   n_SPEC_yes_AL = sum(random_sample == 'SPEC_yes_AL')
+   DF_spec[[paste0("samp_", j)]] = n_SPEC_yes_AL
+  }
+  tableoverlay3 = DF_spec
+}
+end_time <- Sys.time(); end_time - start_time
+
+# Time difference of 1.279083 hours, 3 acre, 58 species, 4 cores
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+CH_SPEC <- do.call(rbind, tableoverlay3)
+#---------------------------------------------------------------------------------------
+# Get are of intersection/overlay for each species
+overlayarea = tableoverlay
+overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
+
+#---------------------------------------------------------------------------------------
+
+
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine.csv'),row.names=F)
+
+```
+
+# Sim Bior - 10 Million acres
+* if Sample 10000000 acres with 3 acre grid size, 1254667 3 acre pixel
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+```{r}
+
+library(parallel)
+library(doParallel)
+library(foreach)
+
+# Create Table representing number of pixels/ag plots in each of the 3 categories:
+# 1. Species land not overlapping with Available land
+# 2. Available land not overlapping with species land
+# 3. Species land overlapping with available land
+
+sampsize = 3333333 # Randomly sample this many 3 acre pixels = 10,000,000 / 3
+iterations = 500
+AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
+#length(overlay_list) # 20 CH, 20 Range
+
+#test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
+
+# Determine which part a species is found
+5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+
+num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files
+
+tableoverlay_all = list()
+start_time <- Sys.time()
+# tableoverlay_all = data.frame(SPEC_ID = NA, 
+#                           SPEC_yes_AL = NA)
+for (z in 1:num_files){
+
+  print(paste0('part ',z,' of ',num_files))
+
+  overlay_part =
+  readRDS(paste0(CH_dir,'Overlays/Biorefineries2/Overlay_FWS_CH_3acre_CornBiorefine_part',z,'.rds'))
+
+# Create a dataframe to contain the overlay information to use in simulations
+tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
+                          SPEC_yes_AL = rep(NA,length(overlay_part)))
+for(i in 1:length(overlay_part)){
+  temp <- tryCatch({ # ERROR HANDLING (in case all same value)
+    getValues(overlay_part[[i]])
+    }, error = function(e) {
+      NA })
+  temp2 = data.frame(value = temp)
+  temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  names(temp3)[1]= "value"
+  temp3$valueNot0 = ifelse(temp3$value>0,1,0)
+  tableoverlay$SPEC_ID[i] = i + z*5-5 # use if there are 5 files in each part (z)
+  #tableoverlay$SPEC_yes_AL[i] = sum(temp3$value>0) # this is summing values, whereas I just need to sub freq of values > 0
+  tableoverlay$SPEC_yes_AL[i] = sum(temp3$valueNot0>0) # this is summing values, whereas I just need to sub freq of values > 0
+}
+tableoverlay_all[[z]] = tableoverlay
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 52.86665 secs
+
+#tableoverlay_all2 = data.frame(unlist(tableoverlay_all))
+tableoverlay_all2 = bind_rows(tableoverlay_all)
+tableoverlay_all2$SPEC_ID = seq(1:nrow(tableoverlay_all2))
+tableoverlay = tableoverlay_all2
+#-------------------------------------------------------------------------------
+# Add on Amount of available land not intersected with habitat/watershed
+tableoverlay$AL_no_SPEC =  AL_pixels- tableoverlay$SPEC_yes_AL
+
+# Remove species/shed with no intersection
+tableoverlay = tableoverlay[tableoverlay$SPEC_yes_AL>0,]
+dim(tableoverlay) # 58
+
+ID_LIST = unique(data.frame(SPEC_ID = tableoverlay$SPEC_ID))
+#tableoverlay$samp_SPEC_yes_AL = NA
+
+#-------------------------------------------------------------------------------
+# Create DF with empty columns using a loop for each ID
+tableoverlay2 = ID_LIST
+
+for (i in 1:iterations) {
+  new_col_name <- paste0("samp_", i) # Create unique column names
+  tableoverlay2[[new_col_name]] <- NA 
+}
+
+nrow(tableoverlay2) # 58
+
+numCores <- detectCores()
+registerDoParallel(numCores-28) #
+
+start_time <- Sys.time()
+tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
+  
+  DF_spec = tableoverlay2[i,]
+  
+  for(j in 1:iterations){
+  print(paste0('SPEC ',i,' iteration ',j))
+   
+  temp = c(#rep("SPEC_no_AL",tableoverlay$SPEC_no_AL[i]),
+               rep("SPEC_yes_AL",tableoverlay$SPEC_yes_AL[i]),
+              rep("AL_no_SPEC",tableoverlay$AL_no_SPEC[i]))
+   random_sample <- sample(temp, size = sampsize,replace=F)
+   
+   # Counts number of 30 acre pixel cells randomly sampled 
+   n_SPEC_yes_AL = sum(random_sample == 'SPEC_yes_AL')
+   DF_spec[[paste0("samp_", j)]] = n_SPEC_yes_AL
+  }
+  tableoverlay3 = DF_spec
+}
+end_time <- Sys.time(); end_time - start_time
+
+# Time difference of 2.924426 hours, 3 acre, 435 species, 4 cores
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+CH_SPEC <- do.call(rbind, tableoverlay3)
+#---------------------------------------------------------------------------------------
+# Get are of intersection/overlay for each species
+overlayarea = tableoverlay
+overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
+
+#---------------------------------------------------------------------------------------
+
+
+
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine.csv'),row.names=F)
+
+```
+
 
 #----------------------------------------------------------------------------------------------
 # STEP4: Summarize Results
@@ -10503,7 +11407,7 @@ Results10 = read.csv(paste0(CH_dir,'Results/3acre/Results_3acre_FWS_CH_10Mchg_50
 
 #----
 
-# **Results-Facilities-FWS CH (no buff) 1, 2, 10 million acre change
+# **Results-Facilities-FWS CH (no buff) 1, 2, 3.7, 10 million acre change
 * 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
 * What percent of available land is 1 million acres
 ```{r}
@@ -10711,7 +11615,217 @@ simResults5$Check_diff10mill_landcoversion =
 
 ```
 
-# Save Simulation Runs
+# **Results-Biorefineries-FWS CH (no buff) 1, 2, 3.7, 10 million acre change
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* What percent of available land is 1 million acres
+```{r}
+
+pixelareas1 = read.csv(paste0(CH_dir,'Raster_Areas/Raster_3acre_Pixel_Areas_FWS_CH_full.csv'))
+pixelareas2 = read.csv(paste0(CH_dir,'Raster_Areas/Raster_3acre_Pixel_Areas_FWS_CH_OutsideCONUS.csv'))
+
+
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine.csv'))
+
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine.csv'))
+
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine.csv'))
+
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine.csv'))
+
+
+#pixelareas1$DD = pixelareas1$area_pixel_acres - pixelareas1$area_acres
+#()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()
+CHDF = ch_df # ch_df, ch_buff_df
+#()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()
+
+names(pixelareas2)[which(colnames(pixelareas2)=="area_OutsidePixel_acres")] = "area_pixel_acres_full"
+
+
+# get the pixel areas for species within and extending beyond CONUS
+AREA = merge(subset(pixelareas1,select=-c(DIFF)),
+             pixelareas2[,c('sciname','area_pixel_acres_full')],
+             by='sciname',all.x=T)
+
+# For CH Buff - add in full area for Green sea turtle which can get raster area for
+# Calculate area_pixel_acres_full by seeing how much more the full area is than clipped area
+#"Chelonia mydas"
+#ch_area2.2$timesmore = ch_area2.2$area_acres_full /ch_area2.2$area_acres
+#ch_area2.2$area_pixel_acres_full = ch_area2.2$area_pixel_acres * ch_area2.2$timesmore
+
+# Fill in NAs for the area_pixel_acres_full with the area for species within CONUS
+AREA$area_pixel_acres_full = 
+  ifelse(is.na(AREA$area_pixel_acres_full),
+         AREA$area_pixel_acres,AREA$area_pixel_acres_full)
+
+AREA$DIFF3= AREA$area_pixel_acres_full-AREA$area_pixel_acres
+
+#-------------------------------------------------------------------------------
+# Summarize duplicates (sum by each SCI ID to get total hits per species)
+
+temps = merge(CHDF,simResults,by='SPEC_ID')
+length(unique(temps$sciname)) # 220 CH buff
+temps = subset(temps,select=-c(SPEC_ID,area_acres))
+
+simResults2 = temps %>% group_by(sciname) %>% summarise(across(where(is.numeric), sum))
+
+
+#----------------------------------------------------------------------------------
+# Mean, Median, 90% Confidence Interval of Mean and percentiles
+
+
+simResults3 = data.frame(sciname = simResults2$sciname,
+                         mean=NA, median=NA,
+                         CI_95_lower=NA, CI_95_upper=NA, 
+                         Percentile_5th=NA, 
+                         Percentile_95th = NA)
+
+for(i in 1:nrow(simResults3)){
+  print(i)
+  temp = as.numeric(simResults2[i,-c(1)])
+
+  simResults3[i,'mean'] = round(mean(temp),1)
+  simResults3[i,'median'] = round(median(temp),1)
+  simResults3[i,'CI_95_lower'] = round(t.test(temp, conf.level = 0.90)$conf.int[1],1)
+  simResults3[i,'CI_95_upper'] = round(t.test(temp, conf.level = 0.90)$conf.int[2],1)
+  simResults3[i,'Percentile_5th'] =quantile(temp,0.05,na.rm=T)
+  simResults3[i,'Percentile_95th'] =quantile(temp,0.95,na.rm=T)
+  
+}
+
+nrow(simResults3) # 220
+
+# Convert freq of hits to acres (each pixel = 3 acres)
+simResults3$mean_acres_impac = simResults3$mean * 3
+simResults3$median_acres_impac = simResults3$median * 3
+simResults3$CI_95_lower_acres_impac = simResults3$CI_95_lower * 3
+simResults3$CI_95_upper_acres_impac = simResults3$CI_95_upper * 3
+simResults3$Percentile_5th_acres_impac = simResults3$Percentile_5th * 3
+simResults3$Percentile_95th_acres_impac = simResults3$Percentile_95th * 3
+
+
+# Add on Common Name
+ch_name = unique(CHDF[,c('sciname','comname')])
+length(unique(ch_name$sciname))
+length(unique(ch_name$comname))
+
+simResults3 = merge(simResults3,ch_name,by='sciname')
+
+nrow(simResults3) # 58
+
+
+# Add on Overlay Areas for each species
+overlayarea2 = merge(CHDF,overlayarea[,c('SPEC_ID','overlay_area_acres')],by='SPEC_ID')
+simResults3 = merge(simResults3,overlayarea2[,c('sciname','overlay_area_acres')],by='sciname')
+
+nrow(simResults3) # 58
+
+simResults4 = 
+  simResults3[,c('sciname','comname',
+                 'mean_acres_impac','median_acres_impac',
+                 'CI_95_lower_acres_impac','CI_95_upper_acres_impac',
+                 'Percentile_5th_acres_impac','Percentile_95th_acres_impac',
+                 'overlay_area_acres')]
+
+
+nrow(simResults4) # 220
+
+# Add in Area and do calculations
+ch_area2 = AREA %>% group_by(sciname) %>% 
+  summarize(area_acres = sum(area_acres),
+            area_acres_full = sum(area_acres_full),
+            area_pixel_acres = sum(area_pixel_acres),
+            area_pixel_acres_full = sum(area_pixel_acres_full)) %>% unique()
+
+simResults5 = merge(simResults4,ch_area2,by='sciname')
+#simResults5 = merge(simResults5,pixelareas3,by='sciname',all.x=T)
+
+nrow(simResults5) # 58
+
+# Fill in NAs for the area_OutsidePixel_acres with the area for species within CONUS
+# simResults5$area_OutsidePixel_acres = 
+#   ifelse(is.na(simResults5$area_OutsidePixel_acres),
+#          simResults5$area_pixel_acres,simResults5$area_OutsidePixel_acres)
+
+# To deal with small habit areas, need to make minimum habitat area be 30 acreas
+#simResults5$area_acres[simResults5$area_acres <30]=30
+
+# simResults5$mean_prc_spec_CONUS_area_convert =
+#   100*simResults5$mean_acres_impac / simResults5$area_acres
+# simResults5$mean_prc_spec_FULL_area_convert =
+#   100*simResults5$mean_acres_impac / simResults5$area_acres_full
+
+simResults5$prc_spec_PIXELAREA_intersected = 
+  100*simResults5$overlay_area_acres / simResults5$area_pixel_acres
+simResults5$mean_prc_spec_PIXELAREA_convert = 
+  100*simResults5$mean_acres_impac / simResults5$area_pixel_acres
+simResults5$mean_prc_spec_FULL_PIXELAREA_convert =
+  100*simResults5$mean_acres_impac / simResults5$area_pixel_acres_full # area_OutsidePixel_acres
+
+
+
+names(simResults5)[which(colnames(simResults5)=="area_acres")] = "total_spec_area_acres"
+names(simResults5)[which(colnames(simResults5)=="area_acres_full")] = "total_spec_area_acres_full"
+names(simResults5)[which(colnames(simResults5)=="area_pixel_acres")] = "total_spec_pixelarea_acres"
+names(simResults5)[which(colnames(simResults5)=="area_pixel_acres_full")] = "total_spec_pixelarea_acres_full"
+names(simResults5)[which(colnames(simResults5)=="overlay_area_acres")] = "Intersected_Pixels_area_acres"
+
+nrow(simResults5) # 220
+options(scipen = 999) 
+
+#--------------------------------------------------------------------------------
+# QA Checks:
+simResults5$CheckDiffPixArea_ShapeArea =
+  simResults5$total_spec_pixelarea_acres - simResults5$total_spec_area_acres
+
+simResults5$CheckDiffPixAreaFull_ShapeAreaFull =
+  simResults5$total_spec_pixelarea_acres_full - simResults5$total_spec_area_acres_full
+
+simResults5$CheckDiff_AreaFull_Area =
+  simResults5$total_spec_area_acres_full - simResults5$total_spec_area_acres
+
+simResults5$CheckDiff_PixAreaFull_PixArea =
+  simResults5$total_spec_pixelarea_acres_full - simResults5$total_spec_pixelarea_acres
+
+# CH simulation acres / AL acres 
+1000000/31978761
+2000000/31978761
+3764000/31978761
+10000000/31978761
+
+# simResults5$Check_diff1mill_landcoversion =
+#   100*(simResults5$mean_prc_spec_PIXELAREA_convert -
+#          simResults5$prc_spec_PIXELAREA_intersected*0.03127075) /
+#  simResults5$mean_prc_spec_PIXELAREA_convert
+# simResults5$Check_diff2mill_landcoversion =
+#   100*(simResults5$mean_prc_spec_PIXELAREA_convert -
+#          simResults5$prc_spec_PIXELAREA_intersected*0.06254151) /
+#   simResults5$mean_prc_spec_PIXELAREA_convert
+# simResults5$Check_diff3.7mill_landcoversion =
+#   100*(simResults5$mean_prc_spec_PIXELAREA_convert -
+#          simResults5$prc_spec_PIXELAREA_intersected*0.1177031) /
+#   simResults5$mean_prc_spec_PIXELAREA_convert
+simResults5$Check_diff10mill_landcoversion =
+  100*(simResults5$mean_prc_spec_PIXELAREA_convert -
+         simResults5$prc_spec_PIXELAREA_intersected*0.3127075) /
+  simResults5$mean_prc_spec_PIXELAREA_convert
+#--------------------------------------------------------------------------------
+# SAVE
+
+
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_1Mchg_500it_CornBiorefineries.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_2Mchg_500it_CornBiorefineries.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_3.764Mchg_500it_CornBiorefineries.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_10Mchg_500it_CornBiorefineries.csv'),row.names=F)
+
+
+```
+
+
+# Save Simulation Runs - Soy Facilities
 ```{r}
 
 
@@ -10769,6 +11883,65 @@ write.csv(sim3.74m_,paste0(CH_dir,'Results/Facilities/All_500_Sims_acres_impacte
 
 
 ```
+
+# Save Simulation Runs - Soy Facilities
+```{r}
+
+sim1m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'))
+sim2m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'))
+sim10m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'))
+sim3.74m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'))
+
+# Merge on Species Name
+sim1m. = merge(ch_df[,c('SPEC_ID','sciname','comname')],sim1m,by='SPEC_ID')
+sim2m. = merge(ch_df[,c('SPEC_ID','sciname','comname')],sim2m,by='SPEC_ID')
+sim10m. = merge(ch_df[,c('SPEC_ID','sciname','comname')],sim10m,by='SPEC_ID')
+sim3.74m. = merge(ch_df[,c('SPEC_ID','sciname','comname')],sim3.74m,by='SPEC_ID')
+
+
+# Combine duplicates
+sim1m.. = subset(sim1m.,select=-c(SPEC_ID,comname)) %>% 
+  group_by(sciname) %>% summarize_all(sum)
+sim2m.. = subset(sim2m.,select=-c(SPEC_ID,comname)) %>% 
+  group_by(sciname) %>% summarize_all(sum)
+sim10m.. = subset(sim10m.,select=-c(SPEC_ID,comname)) %>% 
+  group_by(sciname) %>% summarize_all(sum)
+sim3.74m.. = subset(sim3.74m.,select=-c(SPEC_ID,comname)) %>% 
+  group_by(sciname) %>% summarize_all(sum)
+
+# Multiply all simulation columns by 3 to convert from number of pixels to acres
+sim1m_ = sim1m..
+sim2m_ = sim2m..
+sim10m_ = sim10m..
+sim3.74m_ = sim3.74m..
+
+sim1m_[, 2:501] <- sim1m_[, 2:501] * 3
+sim2m_[, 2:501] <- sim2m_[, 2:501] * 3
+sim10m_[, 2:501] <- sim10m_[, 2:501] * 3
+sim3.74m_[, 2:501] <- sim3.74m_[, 2:501] * 3
+
+# Check
+rwnum = 30
+plt = data.frame(xvals = c(1,2,3.74,10),
+                 yvals = c(rowMeans(sim1m_[rwnum, 2:501]),
+                           rowMeans(sim2m_[rwnum, 2:501]),
+                           rowMeans(sim3.74m_[rwnum, 2:501]),
+                           rowMeans(sim10m_[rwnum, 2:501])))
+plot(plt$yvals ~ plt$xvals)
+
+
+
+
+
+# Save
+write.csv(sim1m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_1M_chg_CornBiorefineries.csv'),row.names=F)
+write.csv(sim2m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_2M_chg_CornBiorefineries.csv'),row.names=F)
+write.csv(sim10m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_10M_chg_CornBiorefineries.csv'),row.names=F)
+write.csv(sim3.74m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_3.74M_chg_CornBiorefineries.csv'),row.names=F)
+
+
+```
+
 
 #-----------------------------
 # View Results

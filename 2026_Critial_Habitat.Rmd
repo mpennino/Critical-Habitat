@@ -1819,6 +1819,10 @@ writeRaster(al_r_mask, paste0(al_dir,"AvailableLand23_raster_3acre_Pixels_over15
 #---
 # Protected Areas (PAD-US)
 * https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview
+* Step 1: Generate Shapefile based on PAD categories
+* Step 2: created dissolved version of shapefile in ArcPro (code in R is not working) (Dissolve function - no need to select specific dissolve field)
+* Step 3: Use Erase tool to remove from the AL shapefile the areas that intersect with protected lands.
+* Step 4: Calculate % of PAD lands that intersect with each species CH (see R code parts 1 and 2 below)
 ```{r}
 
 fgdb <- 'D:/ArcGIS/Collaborations/2026_Critical_Habitat/PADUS4/PADUS4_1Geodatabase.gdb'
@@ -1857,17 +1861,33 @@ PAD_comb <- PAD_comb %>%
 
 
 # Subset out DOMAIN = 1, 2, 3
-PAD_comb2 = PAD_comb[PAD_comb$DOMAIN == 'one'|PAD_comb$DOMAIN == 'two'|PAD_comb$DOMAIN == 'three',]
+PAD_comb1to3 = PAD_comb[PAD_comb$DOMAIN == 'one'|PAD_comb$DOMAIN == 'two'|PAD_comb$DOMAIN == 'three',]
+PAD_comb1 = PAD_comb[PAD_comb$DOMAIN == 'one',]
+PAD_comb2 = PAD_comb[PAD_comb$DOMAIN == 'two',]
+PAD_comb3 = PAD_comb[PAD_comb$DOMAIN == 'three',]
+
+dim(PAD_comb1to3)
+dim(PAD_comb1)
 dim(PAD_comb2)
+dim(PAD_comb3)
 
 # Remove NA rows
 library(tidyr)
-PAD_comb3 <- drop_na(PAD_comb2, DOMAIN)
+PAD_comb1to3 <- drop_na(PAD_comb1to3, DOMAIN)
+PAD_comb1 <- drop_na(PAD_comb1, DOMAIN)
+PAD_comb2 <- drop_na(PAD_comb2, DOMAIN)
+PAD_comb3 <- drop_na(PAD_comb3, DOMAIN)
+
+dim(PAD_comb1to3)
+dim(PAD_comb1)
+dim(PAD_comb2)
 dim(PAD_comb3)
 
 # Convert curves to line
-library(lwgeom)
-#PAD_comb4 <- st_curve_to_line(PAD_comb3)
+#library(lwgeom)
+PAD_comb2. <- st_cast(PAD_comb2)
+
+class(PAD_comb2.)
 
 #sf::sf_use_s2(FALSE)
 
@@ -1877,7 +1897,10 @@ library(lwgeom)
 # 
 
 # Shave Shapefile? 
-st_write(PAD_comb3, paste0(clark_dir,'Spatial/PAD_US_domains1to3_v2.shp'))
+st_write(PAD_comb1to3, paste0(clark_dir,'Spatial/PAD_US_domains1to3_v2.shp'))
+st_write(PAD_comb1, paste0(clark_dir,'Spatial/PAD_US_domains1.shp'))
+st_write(PAD_comb2., paste0(clark_dir,'Spatial/PAD_US_domains2_v2.shp'))
+st_write(PAD_comb3, paste0(clark_dir,'Spatial/PAD_US_domains3.shp'))
 
 
 
@@ -1888,7 +1911,9 @@ st_write(PAD_comb3, paste0(clark_dir,'Spatial/PAD_US_domains1to3_v2.shp'))
 * First used Dissolve tool on shapefile
 * The used Erase tool to remove from the AL shapefile the areas that intersect with protected lands. 
 
-# Intersect PAD with CH species
+
+# % PAD in CH
+# 1. Intersect PAD with CH species
 ```{r}
 library(knitr)
 
@@ -1901,7 +1926,8 @@ pad_dr = 'D:/ArcGIS/Collaborations/Critical_Habitat/PAD_DATA/'
 
 #fgdb <- 'D:/ArcGIS/Collaborations/Critical_Habitat/Critical_Habitats/Critical_Habitats.gdb'
 #PADS <- st_read(fgdb, subds = "PAD_US_domains1to3_v2_Dissolved")
-PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domains1to3_Dissolved.shp'))
+#PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domains1to3_Dissolved.shp')) # generated in ArcPro
+PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domain1_Dissolved.shp')) # generated in ArcPro
 
 
 CH <- st_transform(CH, CRS("+init=epsg:5070"))
@@ -1915,7 +1941,8 @@ projection(PADS)
 
 CH_list_r = list()
 start_time <- Sys.time()
-for(i in 1:length(CH_list$SPEC_ID)){
+#for(i in 1:length(CH_list$SPEC_ID)){
+for(i in 1:10){
   
   print(i)
   CH_sp = CH[CH$SPEC_ID == CH_list$SPEC_ID[i],]
@@ -1929,11 +1956,24 @@ for(i in 1:length(CH_list$SPEC_ID)){
 end_time <- Sys.time(); end_time - start_time
 # takes about 21 minutes per species
 
-saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_spec1to10.rds'))
+#saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_spec1to10.rds'))
+saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain1_spec1to10.rds'))
+#saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain2_spec1to10.rds'))
+#saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain3_spec1to10.rds'))
 
 
 
-# 3. Calculate the area of each overlapping polygon
+
+
+```
+
+# 2. Area of overlap
+```{r}
+
+CH_list_r = readRDS(paste0(pad_dr,'FWS_CH_overlaps_PADUS_spec1to10.rds'))
+
+
+# 2. Calculate the area of each overlapping polygon
 
 overlapping_areas = list()
 start_time <- Sys.time()
@@ -2016,6 +2056,8 @@ CH_list_r2 = foreach(i=1:length(CH_list$SPEC_ID)) %dopar% {
 
 }
 end_time <- Sys.time(); end_time - start_time
+
+
 
 
 ```

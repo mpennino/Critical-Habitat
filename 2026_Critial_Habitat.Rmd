@@ -5663,7 +5663,8 @@ CH_dir2 = "D:/ArcGIS/Collaborations/2026_Critical_Habitat/"
 temp = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
 #length(CH_list_r) # 435
 #al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds')) # see code below
-al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1_crs26978.rds')) # see code below
+#al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1_crs26978.rds')) # see code below
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD2_crs26978.rds')) # see code below
 
 
 library(parallel)
@@ -5802,15 +5803,16 @@ CH_al_r = foreach(i=1:length(species_list_part)) %dopar% {
 stopImplicitCluster()
 gc()
 #saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1to3/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
-saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain1_part',z,'.rds'))
+#saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain1_part',z,'.rds'))
+saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain2_part',z,'.rds'))
 
 rm(al_CH_r3)
 rm(CH_al_r)
 gc()
 }
 end_time <- Sys.time(); end_time - start_time
-# Time difference of 2.529387 hours, for 435 CH species at 3acre
-
+# Time difference of 2.529387 hours, for 435 CH species at 3acre (domains1to3)
+# Time difference of 2.424052 hours, for 435 CH species at 3acre (domain1)
 
 # When you're done, clean up the cluster
 stopImplicitCluster()

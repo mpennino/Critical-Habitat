@@ -8,7 +8,7 @@ editor_options:
 ---
 
 # Approach:
-* try crs4326 
+* try crs4326 vs. 
 * Goal: a table that records % agriculture from the simulations (or summary statistics) for each UNIQUE_ID 
 
 * STEP 1: Make individual rasters for each species Critical Habitat or range  (731 for CH and 1515 species total) for the CONUS that overlap with available land.
@@ -1156,10 +1156,11 @@ al_r = as(al_stars,"Raster")
 
 ```
 
-# Calc Pixel Area of Available Land
+# Calc Pixel Area of AL - Soy
 * For the 63 Crushing facilities: 31978761 acres of available land total/ 3 acre pixels = 10659587 pixels
 * for Full AL dataset 267252377 acres of available land total/ 3 acre pixels = 89084126 pixels
 ```{r}
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_crs5070_63Facil_stars4.rds')) # see code below
 
 #-------------------------------------------------------------------------------
 # For the 63 Crushing Facilities
@@ -1179,6 +1180,57 @@ sum(temp3$value<0)*3 # 60276402 acres
 
 # % shapefile area of pixel area(shape area / pixel area)
 100*31978761/60276402# 53.05353
+
+#-------------------------------------------------------------------------------
+# Full All 3 acre dataset
+
+al_stars_full = readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp.rds'))
+al_r = as(al_stars_full, "Raster") # stars to raster
+
+# make sure values for AL are all either 0 or -2000
+al_r[al_r <0 ] <- -2000 
+
+
+temp = getValues(al_r)
+temp2 = data.frame(value = temp)
+temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+names(temp3)[1]= "value"
+levels(factor(temp3$value))
+sum(temp3$value<0) # 111527135 pixels
+sum(temp3$value<0)*3 # 334581405 acres 
+
+# % shapefile area of pixel area (shape area / pixel area)
+100*267252377/334581405# 79.87664
+
+
+
+```
+
+# Calc Pixel Area of AL - Corn
+* For the Corn Biorefineries: 31978761 acres of available land total/ 3 acre pixels = 10659587 pixels
+* for Full AL dataset 267252377 acres of available land total/ 3 acre pixels = 89084126 pixels
+```{r}
+
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds')) # see code below
+
+#-------------------------------------------------------------------------------
+# For the 63 Crushing Facilities
+al_r = as(al_stars, "Raster") # stars to raster
+
+# make sure values for AL are all either 0 or -2000
+al_r[al_r <0 ] <- -2000 
+
+
+temp = getValues(al_r)
+temp2 = data.frame(value = temp)
+temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+names(temp3)[1]= "value"
+levels(factor(temp3$value))
+sum(temp3$value<0) # 100866266 pixels
+sum(temp3$value<0)*3 # 302598798 acres 
+
+# % shapefile area of pixel area(shape area / pixel area)
+100*31978761/302598798# 10.56804
 
 #-------------------------------------------------------------------------------
 # Full All 3 acre dataset
@@ -1820,7 +1872,9 @@ writeRaster(al_r_mask, paste0(al_dir,"AvailableLand23_raster_3acre_Pixels_over15
 # Protected Areas (PAD-US)
 * https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview
 * Step 1: Generate Shapefile based on PAD categories
-* Step 2: created dissolved version of shapefile in ArcPro (code in R is not working) (Dissolve function - no need to select specific dissolve field)
+** a. fix geometry issue in R: st_cast & st_make_valid
+** b. fix geometry issue in ArcPro: "repair geometry" (if dissolve in next stop still not working)
+* Step 2: create dissolved version of shapefile in ArcPro (code in R is not working) (Dissolve function - no need to select specific dissolve field)
 * Step 3: Use Erase tool to remove from the AL shapefile the areas that intersect with protected lands.
 * Step 4: Calculate % of PAD lands that intersect with each species CH (see R code parts 1 and 2 below)
 ```{r}
@@ -1883,11 +1937,72 @@ dim(PAD_comb1)
 dim(PAD_comb2)
 dim(PAD_comb3)
 
-# Convert curves to line
-#library(lwgeom)
-PAD_comb2. <- st_cast(PAD_comb2)
+# convert shape to geometry
+names(PAD_comb1to3)[which(colnames(PAD_comb1to3)=="Shape")] = "geometry"
+PAD_comb1to3 = st_as_sf(PAD_comb1to3)
+st_geometry(PAD_comb1to3) <- "geometry"
 
-class(PAD_comb2.)
+names(PAD_comb1)[which(colnames(PAD_comb1)=="Shape")] = "geometry"
+PAD_comb1 = st_as_sf(PAD_comb1)
+st_geometry(PAD_comb1) <- "geometry"
+
+names(PAD_comb2)[which(colnames(PAD_comb2)=="Shape")] = "geometry"
+PAD_comb2 = st_as_sf(PAD_comb2)
+st_geometry(PAD_comb2) <- "geometry"
+
+names(PAD_comb3)[which(colnames(PAD_comb3)=="Shape")] = "geometry"
+PAD_comb3 = st_as_sf(PAD_comb3)
+st_geometry(PAD_comb3) <- "geometry"
+
+
+# Convert geometry from MULTISURFACE to MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb1to3))) # "MULTIPOLYGON" "MULTISURFACE"
+levels(factor(st_geometry_type(PAD_comb1))) # "MULTIPOLYGON" "MULTISURFACE"
+levels(factor(st_geometry_type(PAD_comb2))) # "MULTIPOLYGON" "MULTISURFACE"
+levels(factor(st_geometry_type(PAD_comb3))) # "MULTIPOLYGON" "MULTISURFACE"
+
+PAD_comb1to3. <- st_cast(PAD_comb1to3, "MULTIPOLYGON")
+PAD_comb1. <- st_cast(PAD_comb1, "MULTIPOLYGON")
+PAD_comb2. <- st_cast(PAD_comb2, "MULTIPOLYGON")
+PAD_comb3. <- st_cast(PAD_comb3, "MULTIPOLYGON")
+
+levels(factor(st_geometry_type(PAD_comb1to3.))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb1.))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb2.))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb3.))) # MULTIPOLYGON
+
+# Fix self intersecting geometries
+PAD_comb1to3.. <- st_make_valid(PAD_comb1to3.)
+PAD_comb1.. <- st_make_valid(PAD_comb1.)
+PAD_comb2.. <- st_make_valid(PAD_comb2.)
+PAD_comb3.. <- st_make_valid(PAD_comb3.)
+
+# Check if all geometries are now valid
+all(st_is_valid(PAD_comb1to3..)) 
+all(st_is_valid(PAD_comb1..)) 
+all(st_is_valid(PAD_comb2..)) 
+all(st_is_valid(PAD_comb3..)) 
+
+levels(factor(st_geometry_type(PAD_comb1to3..))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb1..))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb2..))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb3..))) # MULTIPOLYGON
+
+PAD_comb1to3... <- st_cast(PAD_comb1to3.., "MULTIPOLYGON")
+PAD_comb1... <- st_cast(PAD_comb1.., "MULTIPOLYGON")
+PAD_comb2... <- st_cast(PAD_comb2.., "MULTIPOLYGON")
+PAD_comb3... <- st_cast(PAD_comb3.., "MULTIPOLYGON")
+
+levels(factor(st_geometry_type(PAD_comb1to3...))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb1...))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb2...))) # MULTIPOLYGON
+levels(factor(st_geometry_type(PAD_comb3...))) # MULTIPOLYGON
+
+# Check if all geometries are now valid
+all(st_is_valid(PAD_comb1to3...)) 
+all(st_is_valid(PAD_comb1...)) 
+all(st_is_valid(PAD_comb2...)) 
+all(st_is_valid(PAD_comb3...)) 
 
 #sf::sf_use_s2(FALSE)
 
@@ -1897,23 +2012,61 @@ class(PAD_comb2.)
 # 
 
 # Shave Shapefile? 
-st_write(PAD_comb1to3, paste0(clark_dir,'Spatial/PAD_US_domains1to3_v2.shp'))
-st_write(PAD_comb1, paste0(clark_dir,'Spatial/PAD_US_domains1.shp'))
-st_write(PAD_comb2., paste0(clark_dir,'Spatial/PAD_US_domains2_v2.shp'))
-st_write(PAD_comb3, paste0(clark_dir,'Spatial/PAD_US_domains3.shp'))
-
+# st_write(PAD_comb1to3., paste0(clark_dir,'Spatial/PAD_US_domains1to3_v2.shp'))
+# st_write(PAD_comb1., paste0(clark_dir,'Spatial/PAD_US_domains1_v2.shp'))
+# st_write(PAD_comb2.., paste0(clark_dir,'Spatial/PAD_US_domains2_v2.shp'))
+# st_write(PAD_comb3., paste0(clark_dir,'Spatial/PAD_US_domains3_v2.shp'))
+st_write(PAD_comb1to3..., paste0(clark_dir,'Spatial/PAD_US_domains1to3_v3.shp')) # ...fix above
+st_write(PAD_comb1.., paste0(clark_dir,'Spatial/PAD_US_domains1_v3.shp'))
+st_write(PAD_comb2..., paste0(clark_dir,'Spatial/PAD_US_domains2_v3.shp')) # ...fix above
+st_write(PAD_comb3.., paste0(clark_dir,'Spatial/PAD_US_domains3_v3.shp'))
 
 
 ```
 
+# Dissolve
+*!!! Takes too long, so doing with ArcPro
+```{r}
+
+# library(spatialEco)
+# 
+# 
+# # Dissolve all features into a single geometry
+# PAD_comb1to3_diss <- st_union(PAD_comb1to3...)
+# PAD_comb1_diss <- st_union(PAD_comb1...)
+# PAD_comb2_diss <- st_union(PAD_comb2...)
+# PAD_comb3_diss <- st_union(PAD_comb3...)
+# 
+# # Convert back to a spatial data frame (sf object)
+# PAD_comb1to3_diss <- st_sf(PAD_comb1to3_diss)
+# PAD_comb1_diss <- st_sf(PAD_comb1_diss)
+# PAD_comb2_diss <- st_sf(PAD_comb2_diss)
+# PAD_comb3_diss <- st_sf(PAD_comb3_diss)
+
+
+# Dissolve overlapping circles
+# PAD_comb1to3_diss <- sf_dissolve(PAD_comb1to3..., overlaps = TRUE)
+# PAD_comb1_diss <- sf_dissolve(PAD_comb1..., overlaps = F)
+# PAD_comb2_diss <- sf_dissolve(PAD_comb2..., overlaps = TRUE)
+# PAD_comb3_diss <- sf_dissolve(PAD_comb3..., overlaps = TRUE)
+# 
+# PAD_comb1_diss = st_as_sf(PAD_comb1_diss)
+# PAD_comb1_diss = st_as_sf(PAD_comb1_diss)
+# PAD_comb1_diss = st_as_sf(PAD_comb1_diss)
+# PAD_comb1_diss = st_as_sf(PAD_comb1_diss)
+
+```
+
+
 # Clip Available Land with Protected Areas? 
 * Needs to be done in ArcPro
 * First used Dissolve tool on shapefile
-* The used Erase tool to remove from the AL shapefile the areas that intersect with protected lands. 
+* Then use Erase tool to remove from the AL shapefile the areas that intersect with protected lands. 
 
 
 # % PAD in CH
 # 1. Intersect PAD with CH species
+! This takes too long (6 days for 435 species at 20 minutes per species) 
 ```{r}
 library(knitr)
 
@@ -1927,7 +2080,8 @@ pad_dr = 'D:/ArcGIS/Collaborations/Critical_Habitat/PAD_DATA/'
 #fgdb <- 'D:/ArcGIS/Collaborations/Critical_Habitat/Critical_Habitats/Critical_Habitats.gdb'
 #PADS <- st_read(fgdb, subds = "PAD_US_domains1to3_v2_Dissolved")
 #PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domains1to3_Dissolved.shp')) # generated in ArcPro
-PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domain1_Dissolved.shp')) # generated in ArcPro
+#PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domain1_Dissolved.shp')) # generated in ArcPro
+PADS = st_read(paste0(clark_dir,'Spatial/PAD_US_domain3_Dissolved.shp')) # generated in ArcPro
 
 
 CH <- st_transform(CH, CRS("+init=epsg:5070"))
@@ -1957,7 +2111,7 @@ end_time <- Sys.time(); end_time - start_time
 # takes about 21 minutes per species
 
 #saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_spec1to10.rds'))
-saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain1_spec1to10.rds'))
+#saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain1_spec1to16.rds'))
 #saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain2_spec1to10.rds'))
 #saveRDS(CH_list_r, file=paste0(pad_dr,'FWS_CH_overlaps_PADUS_domain3_spec1to10.rds'))
 
@@ -2223,6 +2377,52 @@ end_time <- Sys.time(); end_time - start_time
 #saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_30acre.rds'))
 #saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_30acre_allTouched.rds'))
 saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_15acre_Pixels_over15acrePatches.rds'))
+
+
+```
+
+# Rasterize available land (>15 acre patches) (No PAD 1, 2, 3, or 1to3)
+* 15 acres = 246.3794 m pixels
+* 3 acres = 110.1844 m pixels
+```{r}
+# 
+al_dir = "D:/ArcGIS/Collaborations/2025_Critical_Habitat/Available_Land/"
+
+clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/Projects/Collaborations/Clark/"
+
+#al_sf = st_read(paste0(clark_dir,'Spatial/AvailableLand23_over15_simp_no_PADUS.shp'))
+#al_sf = st_read(paste0(clark_dir,'Spatial/AvailableLand23_over15_simp_no_PAD_domain1.shp'))
+al_sf = st_read(paste0(clark_dir,'Spatial/AvailableLand23_over15_simp_no_PAD_domain2.shp'))
+#al_sf = st_read(paste0(clark_dir,'Spatial/AvailableLand23_over15_simp_no_PAD_domain3.shp'))
+
+
+
+pixsize1 = 110.1844  # units = meters (348.4336 m for 30 acre grid)
+
+#al <- st_transform(al, CRS("+init=epsg:5070"))
+states_boundary <- st_transform(states_boundary, CRS("+init=epsg:26978"))
+
+projection(states_boundary)
+projection(al_sf)
+
+start_time <- Sys.time()
+
+al_sf$AL_Category = -2000 # using 2000 since its a number > 1917 (the number of watersheds)
+al_stars = st_rasterize(al_sf["AL_Category"], st_as_stars(st_bbox(states_boundary),
+             dx = pixsize1, dy = pixsize1), options = "ALL_TOUCHED=TRUE")
+
+# used for the reclassification step below (converting non species pixels to NA)
+
+gc()
+
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 2.038454 mins, 3 acre pixel size
+
+#saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds'))
+#saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1_crs26978.rds'))
+saveRDS(al_stars, file=paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD2_crs26978.rds'))
+
+
 
 
 ```
@@ -5451,6 +5651,176 @@ gc()
 
 ```
 
+#--
+# **Overlay PAD 1to3 (crs26978) (PAD removed from AL)
+*!!! if the extents do not line up, then check if the resolution (pixel sizes) are different between the rasters
+```{r}
+
+al_dir = "D:/ArcGIS/Collaborations/2025_Critical_Habitat/Available_Land/"
+CH_dir2 = "D:/ArcGIS/Collaborations/2026_Critical_Habitat/"
+
+#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
+temp = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
+#length(CH_list_r) # 435
+#al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds')) # see code below
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1_crs26978.rds')) # see code below
+
+
+library(parallel)
+library(doParallel)
+library(foreach)
+library(raster)
+library(sf)
+library(stars)
+#temp = CH_list_r[[1]]
+#temp2 = st_transform(temp, crs = 5070)
+projection(as(temp,"Raster"))
+projection(as(al_stars,"Raster"))
+#projection(as(temp2,"Raster"))
+
+# res(as(CH_list_r[[1]],"Raster"))
+# res(as(al_stars,"Raster"))
+
+# Determine which part a species is found
+#5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+#al_stars_ <- st_transform(al_stars, CRS("+init=epsg:5070"))
+#st_res(al_stars_)
+
+rcl3 <- data.frame(is = c(0:2000), becomes = c(NA)) # NA if outside Available land
+
+#-------------------------------------------------------------------------------
+al_r = as(al_stars, "Raster") # stars to raster
+
+#projection(as(temp,"Raster"))
+#projection(as(al_r,"Raster"))
+
+#-------------------------------------------------------------------------------
+PARTS = list()
+for(i in 1:87){ # 87 parts needed to get 435 species (5*87=435)
+  PARTS[[i]] = seq(1,5)+i*5-5 # generates list of sequences
+}
+
+start_time <- Sys.time()
+
+al_CH_r_parts = list()
+for (z in 1:length(PARTS)){
+
+  print(paste0('part ',z,' of ',length(PARTS)))
+  start_time2 <- Sys.time()
+
+  species_list_part = 
+    readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[PARTS[[z]]]
+
+
+numCores <- detectCores()
+registerDoParallel(numCores-31) # if use more than 3 cores it often crashes
+
+CH_al_r = foreach(i=1:length(species_list_part)) %dopar% {
+  library(raster)
+  library(stars)
+  
+  CH_stars = species_list_part[[i]]
+  
+  # crop full available land to get just extent of Species land
+  CH_r = as(CH_stars, "Raster") # stars to raster
+
+  # Flag if different resolutions
+  if (identical(round(res(al_r)[1],4), round(res(CH_r)[1],4)) != TRUE) {
+  warning("!!Warning!! rasters don't have same resolution!!")
+    }
+  
+  ## ERROR HANDLING (if no overlap between rasters)
+  #al_crop_r = crop(al_r,extent(CH_r))#,snap='in') 
+  al_crop_r <- tryCatch({ # ERROR HANDLING 
+    al_crop_r = crop(al_r,extent(CH_r))
+    }, error = function(e) {
+      al_r })
+  
+   ## ERROR HANDLING (if no overlap between rasters)
+  #CH_r = crop(CH_r,extent(al_r)) 
+  CH_r <- tryCatch({ # ERROR HANDLING 
+    CH_r = crop(CH_r,extent(al_r)) 
+    }, error = function(e) {
+      CH_r })
+  
+  
+  ## ERROR HANDLING (if no overlap between rasters)
+  # If the al_crop_r raster ends up being smaller than the species raster, need to recrop using al raster
+  CH_r <- tryCatch({ # ERROR HANDLING 
+    CH_r = crop(CH_r,extent(al_crop_r)) 
+    }, error = function(e) {
+      CH_r })
+
+  # convert back to stars object
+  al_crop_st = st_as_stars(al_crop_r)
+  CH_st = st_as_stars(CH_r)
+  
+  # Modify the offset & x/y to get matching dimensions
+  st_dimensions(al_crop_st)$x$offset = st_dimensions(CH_st)$x$offset 
+  st_dimensions(al_crop_st)$y$offset = st_dimensions(CH_st)$y$offset
+
+  al_crop_st = st_as_stars(al_crop_st) # if need to convert from stars_proxy to stars
+  CH_st = st_as_stars(CH_st) # if need to convert from stars_proxy to stars
+  
+  # Modify the offset & x/y to get matching dimensions (need to redo if stars_proxy issue)
+  st_dimensions(al_crop_st)$x$offset = st_dimensions(CH_st)$x$offset 
+  st_dimensions(al_crop_st)$y$offset = st_dimensions(CH_st)$y$offset
+
+  # make sure values for AL are all either 0 or -2000
+  al_crop_st2 = al_crop_st
+  al_crop_st2[al_crop_st2 <0 ] <- -2000 
+
+  #-----------------------------------------------------------------------------
+  # Combine the Rasters
+  ## ERROR HANDLING (if no overlap between rasters & dimensions don't match)
+  # If the al_crop_r raster ends up being smaller than the species raster, need to recrop using al raster
+  al_CH_r3 <- tryCatch({ # ERROR HANDLING (in case all same value)
+    c = c(al_crop_st2, CH_st, along=3)
+    al_CH = st_apply(c, 1:2, sum)
+    al_CH_r = as(al_CH, "Raster") # stars to raster
+    
+    # Reclassify (zeros are NA's from Available Land)
+    # All positive values also become NA because those are species pixels not on available land
+    # only negative values are critical habitat on available land.
+    al_CH_r2 = reclassify(al_CH_r,rcl=rcl3)
+    
+    # Reclassify again (to get raster values back to "CH_ID")
+    # >0 = species that overlaps with available land for specific species
+    # 0 = available land without species
+    #al_CH_r2+2000 # a whole number greater than total number of species
+    al_CH_r3 = al_CH_r2+2000 # used only for manually doing this one species at a time
+   
+    }, error = function(e) {
+      al_CH_r3 <- raster(nrows=10, ncols=10)
+      al_CH_r3[] <- 0 # Assign NA to all cells
+      al_CH_r3 = raster(al_CH_r3)
+      })
+
+}
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+#saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1to3/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
+saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain1_part',z,'.rds'))
+
+rm(al_CH_r3)
+rm(CH_al_r)
+gc()
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 2.529387 hours, for 435 CH species at 3acre
+
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+####
+
+```
+
+
 #-----------------------------------------------------------------------------
 # STEP 3: Simulations
 *This section randomly samples the a raster layer with species habitat or range land within available land to and determines the number of times a CH is "hit" or "grabbed" randomly compared to the total available land possible to grab.  This random grab is done X iterations to calculate confidence intervals. 
@@ -8058,6 +8428,141 @@ write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_
 
 ```
 
+#--
+
+# Sim PAD1to3 - 3.764 Million acres
+* if Sample 3764000 acres with 3 acre grid size, 1254667 3 acre pixel
+* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+```{r}
+
+library(parallel)
+library(doParallel)
+library(foreach)
+
+# Create Table representing number of pixels/ag plots in each of the 3 categories:
+# 1. Species land not overlapping with Available land
+# 2. Available land not overlapping with species land
+# 3. Species land overlapping with available land
+
+sampsize = 1254667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
+iterations = 500
+AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
+#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
+#length(overlay_list) # 20 CH, 20 Range
+
+#test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
+
+# Determine which part a species is found
+5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
+
+
+num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files
+
+tableoverlay_all = list()
+start_time <- Sys.time()
+# tableoverlay_all = data.frame(SPEC_ID = NA, 
+#                           SPEC_yes_AL = NA)
+for (z in 1:num_files){
+
+  print(paste0('part ',z,' of ',num_files))
+
+  overlay_part =
+  readRDS(paste0(CH_dir2,'Overlays/PAD1to3/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
+
+# Create a dataframe to contain the overlay information to use in simulations
+tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
+                          SPEC_yes_AL = rep(NA,length(overlay_part)))
+for(i in 1:length(overlay_part)){
+  temp <- tryCatch({ # ERROR HANDLING (in case all same value)
+    getValues(overlay_part[[i]])
+    }, error = function(e) {
+      NA })
+  temp2 = data.frame(value = temp)
+  temp3 = as.data.frame(temp2[complete.cases(temp2[,c("value")]),]) # keeps all rows without NA in specified column
+  names(temp3)[1]= "value"
+  temp3$valueNot0 = ifelse(temp3$value>0,1,0)
+  tableoverlay$SPEC_ID[i] = i + z*5-5 # use if there are 5 files in each part (z)
+  #tableoverlay$SPEC_yes_AL[i] = sum(temp3$value>0) # this is summing values, whereas I just need to sub freq of values > 0
+  tableoverlay$SPEC_yes_AL[i] = sum(temp3$valueNot0>0) # this is summing values, whereas I just need to sub freq of values > 0
+}
+tableoverlay_all[[z]] = tableoverlay
+}
+end_time <- Sys.time(); end_time - start_time
+# Time difference of 52.86665 secs
+
+#tableoverlay_all2 = data.frame(unlist(tableoverlay_all))
+tableoverlay_all2 = bind_rows(tableoverlay_all)
+tableoverlay_all2$SPEC_ID = seq(1:nrow(tableoverlay_all2))
+tableoverlay = tableoverlay_all2
+#-------------------------------------------------------------------------------
+# Add on Amount of available land not intersected with habitat/watershed
+tableoverlay$AL_no_SPEC =  AL_pixels- tableoverlay$SPEC_yes_AL
+
+# Remove species/shed with no intersection
+tableoverlay = tableoverlay[tableoverlay$SPEC_yes_AL>0,]
+dim(tableoverlay) # 58
+
+ID_LIST = unique(data.frame(SPEC_ID = tableoverlay$SPEC_ID))
+#tableoverlay$samp_SPEC_yes_AL = NA
+
+#-------------------------------------------------------------------------------
+# Create DF with empty columns using a loop for each ID
+tableoverlay2 = ID_LIST
+
+for (i in 1:iterations) {
+  new_col_name <- paste0("samp_", i) # Create unique column names
+  tableoverlay2[[new_col_name]] <- NA 
+}
+
+nrow(tableoverlay2) # 58
+
+numCores <- detectCores()
+registerDoParallel(numCores-28) #
+
+start_time <- Sys.time()
+tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
+  
+  DF_spec = tableoverlay2[i,]
+  
+  for(j in 1:iterations){
+  print(paste0('SPEC ',i,' iteration ',j))
+   
+  temp = c(#rep("SPEC_no_AL",tableoverlay$SPEC_no_AL[i]),
+               rep("SPEC_yes_AL",tableoverlay$SPEC_yes_AL[i]),
+              rep("AL_no_SPEC",tableoverlay$AL_no_SPEC[i]))
+   random_sample <- sample(temp, size = sampsize,replace=F)
+   
+   # Counts number of 30 acre pixel cells randomly sampled 
+   n_SPEC_yes_AL = sum(random_sample == 'SPEC_yes_AL')
+   DF_spec[[paste0("samp_", j)]] = n_SPEC_yes_AL
+  }
+  tableoverlay3 = DF_spec
+}
+end_time <- Sys.time(); end_time - start_time
+
+# Time difference of 1.279083 hours, 3 acre, 58 species, 4 cores
+
+# When you're done, clean up the cluster
+stopImplicitCluster()
+gc()
+
+CH_SPEC <- do.call(rbind, tableoverlay3)
+#---------------------------------------------------------------------------------------
+# Get are of intersection/overlay for each species
+overlayarea = tableoverlay
+overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
+
+#---------------------------------------------------------------------------------------
+
+
+saveRDS(tableoverlay3, file=paste0(CH_dir2,'Simulations/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_noPAD1to3.rds'))
+write.csv(CH_SPEC,paste0(CH_dir2,'Simulations/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_noPAD1to3.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir2,'Simulations/Overlay_Area_FWS_CH_3acre_3.764mill_chg_noPAD1to3.csv'),row.names=F)
+
+```
 
 #----------------------------------------------------------------------------------------------
 # STEP4: Summarize Results

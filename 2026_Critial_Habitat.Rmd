@@ -1286,7 +1286,8 @@ mapview(al_stars,col.regions='grey')+
 ```
 
 
-# AL - Facilities Clip
+# AL - Facilities Clip - Area Calc
+** AvailableLand23_over15a_simp_63Facil.shp was generated in ArcPro
 ```{r}
 
 fgdb <- 'D:/ArcGIS/Collaborations/Critical_Habitat/Critical_Habitats/Critical_Habitats.gdb'
@@ -1300,11 +1301,30 @@ al_clip$area_acres = al_clip$area_m2 * 0.000247105
 library(units)
 al_clip = drop_units(al_clip)
 
-sum(al_clip$area_km2) # 147565.2 all, 72705.45 (for AL over 15 acres patches)
-sum(al_clip$area_acres) # 36464095 all, 31978761(for AL over 15 acres patches) (old 17,965,881)
+sum(al_clip$area_km2) # 129413.7 (for AL over 15 acres patches)
+sum(al_clip$area_acres) # 31978761(for AL over 15 acres patches)
 
 ```
 
+# AL - Biorefineries Clip - Area Calc
+** AvailableLand23_over15a_simp_CornBior.shp was generated in ArcPro
+```{r}
+
+fgdb <- 'D:/ArcGIS/Collaborations/Critical_Habitat/Critical_Habitats/Critical_Habitats.gdb'
+al_clip <- sf::st_read(dsn = fgdb, layer = "AvailableLand23_over15a_simp_CornBior")
+
+dim(al_clip)
+
+al_clip$area_m2 = st_area(al_clip) # creates area in sq meters
+al_clip$area_km2 = al_clip$area_m2 / 1000000
+al_clip$area_acres = al_clip$area_m2 * 0.000247105
+library(units)
+al_clip = drop_units(al_clip)
+
+sum(al_clip$area_km2) # 350663.9 (for AL over 15 acres patches)
+sum(al_clip$area_acres) # 86650812(for AL over 15 acres patches)
+# ArcPro: 86650945.75950515 acres (very close to R coded value)
+```
 
 #--
 # Merge Areas FWS
@@ -1413,6 +1433,8 @@ options(scipen = 999)
 #--------------------------------------------------------------------------------
 
 # Soy Crushing Facilities
+* Used ArcPro and clip tool to create the shapefile = AvailableLand23_over15a_simp_63Facil.shp
+* Used below R code to create clipped stars raster 
 ```{r}
 
 clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/Projects/Collaborations/Clark/"
@@ -1448,6 +1470,8 @@ fac_b <- st_buffer(fac_s, dist = 80467.2)
 
 # Clip AL to Facilities Buffer
 * This is the code I am using for generating the AL clipped layer for the analysis
+* Generate clipped shapefile - do it in ArcPro
+*** Area of shapefile: 32,751,515 acres or 892782934.4
 ```{r}
 
 
@@ -1667,6 +1691,11 @@ ggplot() +
 
 #---
 # Corn Biorefineries
+* To create clipped Shapefile I use ArcPro, but to create clipped stars raster, I use the below R code.
+** Method in ArcPro:
+*** Clip tool with Input = AvailableLand23_over15acres_simplified
+*** Clip feature = Corn_biorefineries_50mi_buffer
+*** Output file = D:\ArcGIS\Collaborations\Critical_Habitat\Critical_Habitats\Critical_Habitats.gdb\AvailableLand23_over15a_simp_CornBior
 ```{r}
 
 library('tidygeocoder')
@@ -5659,12 +5688,12 @@ gc()
 al_dir = "D:/ArcGIS/Collaborations/2025_Critical_Habitat/Available_Land/"
 CH_dir2 = "D:/ArcGIS/Collaborations/2026_Critical_Habitat/"
 
-#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
-temp = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
+#CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))
+#temp = readRDS(paste0(CH_dir,'Rasters/Rasters_FWS_CH_3acrePixel_crs26978.rds'))[[1]]
 #length(CH_list_r) # 435
-#al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds')) # see code below
+al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1to3_crs26978.rds')) # see code below
 #al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD1_crs26978.rds')) # see code below
-al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD2_crs26978.rds')) # see code below
+#al_stars= readRDS(paste0(al_dir,'AvailableLand23_raster_3acre_Pixels_over15acrePatches_simp_no_PAD2_crs26978.rds')) # see code below
 
 
 library(parallel)
@@ -5673,7 +5702,7 @@ library(foreach)
 library(raster)
 library(sf)
 library(stars)
-#temp = CH_list_r[[1]]
+temp = CH_list_r[[1]]
 #temp2 = st_transform(temp, crs = 5070)
 projection(as(temp,"Raster"))
 projection(as(al_stars,"Raster"))
@@ -5803,8 +5832,10 @@ CH_al_r = foreach(i=1:length(species_list_part)) %dopar% {
 stopImplicitCluster()
 gc()
 #saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1to3/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
+saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1to3_v2/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
+
 #saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain1_part',z,'.rds'))
-saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain2_part',z,'.rds'))
+#saveRDS(CH_al_r, file=paste0(CH_dir2,'Overlays/PAD1/Overlay_FWS_CH_3acre_AL_no_PAD_domain2_part',z,'.rds'))
 
 rm(al_CH_r3)
 rm(CH_al_r)
@@ -5813,6 +5844,7 @@ gc()
 end_time <- Sys.time(); end_time - start_time
 # Time difference of 2.529387 hours, for 435 CH species at 3acre (domains1to3)
 # Time difference of 2.424052 hours, for 435 CH species at 3acre (domain1)
+# Time difference of 2.439874 hours, for 435 CH species at 3acre (domain2)
 
 # When you're done, clean up the cluster
 stopImplicitCluster()
@@ -7894,7 +7926,7 @@ write.csv(overlayarea,paste0(CH_dir,'Simulations/Facilities/Crushing/Overlay_Are
 #--
 # Sim Bior - 1 Million acres
 * if Sample 1000000 acres with 3 acre grid size, 1254667 3 acre pixel
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 86650812 acres of available land (Corn Biorefineries) total/ 3 acre pixels = 28883604 pixels
 ```{r}
 
 library(parallel)
@@ -7908,7 +7940,7 @@ library(foreach)
 
 sampsize = 333333 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
 iterations = 500
-AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+AL_pixels = 28883604 # total available land as 3 acre pixels (see notes above)
 
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Biorefineries/Overlay_FWS_CH_3acre_CornBiorefine_part.rds'))
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Biorefineries/Overlay_FWS_CH_3acre_CornBiorefine_part.rds'))
@@ -8006,7 +8038,7 @@ tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
 }
 end_time <- Sys.time(); end_time - start_time
 
-# Time difference of 41.83788 mins, 3 acre, 58 species, 4 cores
+# Time difference of 1.660871 hours, 3 acre, 435 species, 4 cores
 
 # When you're done, clean up the cluster
 stopImplicitCluster()
@@ -8020,16 +8052,16 @@ overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
 
 #---------------------------------------------------------------------------------------
 
-saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.rds'))
-write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'),row.names=F)
-write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine.csv'),row.names=F)
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine_v2.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine_v2.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine_v2.csv'),row.names=F)
 
 
 ```
 
 # Sim Bior - 2 Million acres
 * if Sample 2000000 acres with 3 acre grid size, 666667 3 acre pixel
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 86650812 acres of available land (Corn Biorefineries) total/ 3 acre pixels = 28883604 pixels
 ```{r}
 
 library(parallel)
@@ -8043,7 +8075,7 @@ library(foreach)
 
 sampsize = 666667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
 iterations = 500
-AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+AL_pixels = 28883604 # total available land as 3 acre pixels (see notes above)
 
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
@@ -8140,7 +8172,7 @@ tableoverlay3 = foreach(i=1:nrow(tableoverlay2)) %dopar% {
 }
 end_time <- Sys.time(); end_time - start_time
 
-# Time difference of 49.66572 mins, 3 acre, 58 species, 4 cores
+# Time difference of 1.766515 hours, 3 acre, 435 species, 4 cores
 
 # When you're done, clean up the cluster
 stopImplicitCluster()
@@ -8154,16 +8186,16 @@ overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
 
 #---------------------------------------------------------------------------------------
 
-saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.rds'))
-write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'),row.names=F)
-write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine.csv'),row.names=F)
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine_v2.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine_v2.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine_v2.csv'),row.names=F)
 
 
 ```
 
 # Sim Bior - 3.764 Million acres
 * if Sample 3764000 acres with 3 acre grid size, 1254667 3 acre pixel
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 86650812 acres of available land (Corn Biorefineries) total/ 3 acre pixels = 28883604 pixels
 ```{r}
 
 library(parallel)
@@ -8177,7 +8209,7 @@ library(foreach)
 
 sampsize = 1254667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
 iterations = 500
-AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+AL_pixels = 28883604 # total available land as 3 acre pixels (see notes above)
 
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
@@ -8289,15 +8321,15 @@ overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
 #---------------------------------------------------------------------------------------
 
 
-saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.rds'))
-write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'),row.names=F)
-write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine.csv'),row.names=F)
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine_v2.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine_v2.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine_v2.csv'),row.names=F)
 
 ```
 
 # Sim Bior - 10 Million acres
 * if Sample 10000000 acres with 3 acre grid size, 1254667 3 acre pixel
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 86650812 acres of available land (Corn Biorefineries) total/ 3 acre pixels = 28883604 pixels
 ```{r}
 
 library(parallel)
@@ -8311,7 +8343,7 @@ library(foreach)
 
 sampsize = 3333333 # Randomly sample this many 3 acre pixels = 10,000,000 / 3
 iterations = 500
-AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+AL_pixels = 28883604 # total available land as 3 acre pixels (see notes above)
 
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
 #overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
@@ -8424,34 +8456,67 @@ overlayarea$overlay_area_acres = overlayarea$SPEC_yes_AL*3 # * 3 acres per pixel
 
 
 
-saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.rds'))
-write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'),row.names=F)
-write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine.csv'),row.names=F)
+saveRDS(tableoverlay3, file=paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine_v2.rds'))
+write.csv(CH_SPEC,paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine_v2.csv'),row.names=F)
+write.csv(overlayarea,paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine_v2.csv'),row.names=F)
 
 ```
 
 #--
 
+# Area of AL shapefiles
+```{r}
+library(foreign)
+
+clark_dir = "C:/Users/MPennino/OneDrive - Environmental Protection Agency (EPA)/Projects/Collaborations/Clark/"
+
+al_dbf = read.dbf(paste0(clark_dir,'Spatial/AvailableLand23_over15_simp_no_PADUS.dbf'))
+
+# Sum Area
+sum(al_dbf$Area_km2) # 889898.4
+
+# Convert to acres
+# = 219898683.6 acreas
+
+```
+
+# Check area of overlay rasters
+```{r}
+
+overlay_list = readRDS(paste0(CH_dir2,'Overlays/PAD1to3_v2/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part1.rds'))
+
+temp1 = overlay_list[[5]]
+cell_area = prod(res(temp1))
+cell_count <- cellStats(!is.na(temp1), stat = 'sum')
+
+cell_count * cell_area
+
+```
+
+
 # Sim PAD1to3 - 3.764 Million acres
 * if Sample 3764000 acres with 3 acre grid size, 1254667 3 acre pixel
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 219898683.6 acres of available land (Without PADs 1to3) total/ 3 acre pixels = 73299561 pixels
 ```{r}
 
 library(parallel)
 library(doParallel)
 library(foreach)
+CH_dir2 = "D:/ArcGIS/Collaborations/2026_Critical_Habitat/"
 
 # Create Table representing number of pixels/ag plots in each of the 3 categories:
 # 1. Species land not overlapping with Available land
 # 2. Available land not overlapping with species land
 # 3. Species land overlapping with available land
 
-sampsize = 1254667 # Randomly sample this many 3 acre pixels = 1,000,000 / 3
+sampsize = 1254667 # Randomly sample this many 3 acre pixels
 iterations = 500
-AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
+AL_pixels = 73299561 # total available land as 3 acre pixels (see notes above)
 
-#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_CH_Top20_on_AL_3acres.rds'))
-#overlay_list = readRDS(paste0(CH_dir,'Overlays/Overlay_FWS_Range_Top20_on_AL_3acres.rds'))
+
+#overlay_list = readRDS(paste0(CH_dir2,'Overlays/PAD1to3_v2/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part1.rds'))
+
+
 #length(overlay_list) # 20 CH, 20 Range
 
 #test = readRDS(paste0(CH_dir,'Overlays/3acre/FWS_CH/Overlay_CH_FWS_on_AL_rasters_3acre_part',z,'.rds'))
@@ -8460,7 +8525,7 @@ AL_pixels = 10659587 # total available land as 3 acre pixels (see notes above)
 5+29*5-5  # i+z*5-5 (i = 1-5, z = part # from 1-97)
 
 
-num_files <- length(list.files(paste0(CH_dir,'Overlays/Biorefineries2')))
+num_files <- length(list.files(paste0(CH_dir2,'Overlays/PAD1to3_v2')))
 num_files
 
 tableoverlay_all = list()
@@ -8472,7 +8537,7 @@ for (z in 1:num_files){
   print(paste0('part ',z,' of ',num_files))
 
   overlay_part =
-  readRDS(paste0(CH_dir2,'Overlays/PAD1to3/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
+  readRDS(paste0(CH_dir2,'Overlays/PAD1to3_v2/Overlay_FWS_CH_3acre_AL_no_PAD_domains1to3_part',z,'.rds'))
 
 # Create a dataframe to contain the overlay information to use in simulations
 tableoverlay = data.frame(SPEC_ID = rep(NA,length(overlay_part)), 
@@ -12165,7 +12230,7 @@ simResults5$Check_diff10mill_landcoversion =
 ```
 
 # **Results-Biorefineries-FWS CH (no buff) 1, 2, 3.7, 10 million acre change
-* 31978761 acres of available land (Within Crushing Facilities) total/ 3 acre pixels = 10659587 pixels
+* 86650812 acres of available land (Corn Biorefineries) total/ 3 acre pixels = 28883604 pixels
 * What percent of available land is 1 million acres
 ```{r}
 
@@ -12173,17 +12238,17 @@ pixelareas1 = read.csv(paste0(CH_dir,'Raster_Areas/Raster_3acre_Pixel_Areas_FWS_
 pixelareas2 = read.csv(paste0(CH_dir,'Raster_Areas/Raster_3acre_Pixel_Areas_FWS_CH_OutsideCONUS.csv'))
 
 
-simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'))
-overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine.csv'))
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine_v2.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_1mill_chg_cornBiorefine_v2.csv'))
 
-simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'))
-overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine.csv'))
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine_v2.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_2mill_chg_cornBiorefine_v2.csv'))
 
-simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'))
-overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine.csv'))
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine_v2.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_3.764mill_chg_cornBiorefine_v2.csv'))
 
-simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'))
-overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine.csv'))
+simResults = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine_v2.csv'))
+overlayarea = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Overlay_Area_FWS_CH_3acre_10mill_chg_cornBiorefine_v2.csv'))
 
 
 #pixelareas1$DD = pixelareas1$area_pixel_acres - pixelareas1$area_acres
@@ -12292,7 +12357,7 @@ ch_area2 = AREA %>% group_by(sciname) %>%
 simResults5 = merge(simResults4,ch_area2,by='sciname')
 #simResults5 = merge(simResults5,pixelareas3,by='sciname',all.x=T)
 
-nrow(simResults5) # 58
+nrow(simResults5) # 77
 
 # Fill in NAs for the area_OutsidePixel_acres with the area for species within CONUS
 # simResults5$area_OutsidePixel_acres = 
@@ -12340,10 +12405,11 @@ simResults5$CheckDiff_PixAreaFull_PixArea =
   simResults5$total_spec_pixelarea_acres_full - simResults5$total_spec_pixelarea_acres
 
 # CH simulation acres / AL acres 
-1000000/31978761
-2000000/31978761
-3764000/31978761
-10000000/31978761
+1000000/86650812
+2000000/86650812
+3764000/86650812
+10000000/86650812
+
 
 # simResults5$Check_diff1mill_landcoversion =
 #   100*(simResults5$mean_prc_spec_PIXELAREA_convert -
@@ -12365,10 +12431,10 @@ simResults5$Check_diff10mill_landcoversion =
 # SAVE
 
 
-#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_1Mchg_500it_CornBiorefineries.csv'),row.names=F)
-#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_2Mchg_500it_CornBiorefineries.csv'),row.names=F)
-#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_3.764Mchg_500it_CornBiorefineries.csv'),row.names=F)
-#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_10Mchg_500it_CornBiorefineries.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_1Mchg_500it_CornBiorefineries_v2.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_2Mchg_500it_CornBiorefineries_v2.csv'),row.names=F)
+#write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_3.764Mchg_500it_CornBiorefineries_v2.csv'),row.names=F)
+write.csv(simResults5,paste0(CH_dir,'Results/Biorefineries/Results_3acre_FWS_CH_10Mchg_500it_CornBiorefineries_v2.csv'),row.names=F)
 
 
 ```
@@ -12436,10 +12502,10 @@ write.csv(sim3.74m_,paste0(CH_dir,'Results/Facilities/All_500_Sims_acres_impacte
 # Save Simulation Runs - Soy Facilities
 ```{r}
 
-sim1m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine.csv'))
-sim2m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine.csv'))
-sim10m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine.csv'))
-sim3.74m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine.csv'))
+sim1m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_1mill_chg_cornBiorefine_v2.csv'))
+sim2m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_2mill_chg_cornBiorefine_v2.csv'))
+sim10m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_10mill_chg_cornBiorefine_v2.csv'))
+sim3.74m = read.csv(paste0(CH_dir,'Simulations/Biorefineries/Sim_tabular_FWS_CH_3acre_500it_3.764mill_chg_cornBiorefine_v2.csv'))
 
 # Merge on Species Name
 sim1m. = merge(ch_df[,c('SPEC_ID','sciname','comname')],sim1m,by='SPEC_ID')
@@ -12483,10 +12549,10 @@ plot(plt$yvals ~ plt$xvals)
 
 
 # Save
-write.csv(sim1m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_1M_chg_CornBiorefineries.csv'),row.names=F)
-write.csv(sim2m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_2M_chg_CornBiorefineries.csv'),row.names=F)
-write.csv(sim10m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_10M_chg_CornBiorefineries.csv'),row.names=F)
-write.csv(sim3.74m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_3.74M_chg_CornBiorefineries.csv'),row.names=F)
+write.csv(sim1m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_1M_chg_CornBiorefineries_v2.csv'),row.names=F)
+write.csv(sim2m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_2M_chg_CornBiorefineries_v2.csv'),row.names=F)
+write.csv(sim10m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_10M_chg_CornBiorefineries_v2.csv'),row.names=F)
+write.csv(sim3.74m_,paste0(CH_dir,'Results/Biorefineries/All_500_Sims_acres_impacted_FWS_CH_3.74M_chg_CornBiorefineries_v2.csv'),row.names=F)
 
 
 ```

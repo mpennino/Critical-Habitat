@@ -155,6 +155,20 @@ names(ch_all_df)[which(colnames(ch_all_df)=="area_acres")] = "area_acres_full"
 
 ```
 
+# designated population segments (DPS)
+```{r}
+
+# Keep rows where 'player' contains the partial string "Ap"
+result <- ch_fws[grepl("Plov", ch_fws$comname), ]
+
+ch_test = st_drop_geometry(ch_fws)
+
+length(unique(ch_test$sciname))
+length(unique(ch_test$entity_id))
+
+```
+
+
 # Load FWS CH Buff
 ```{r}
 
@@ -14584,6 +14598,7 @@ CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_NMFS_CH_lines_speciesbox_allt
 #CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_NMFS_Range_speciesbox_alltouched.rds'))
 #CH_list_r = readRDS(paste0(CH_dir,'Rasters/Rasters_NMFS_Range_buffer_speciesbox_alltouched.rds'))
 
+sqrt(sum(c(2^2,3^2,2^2)))/3
 
 length(CH_list_r) # 9 CH line, 24 CH poly, 29 CH buff, 77 range
 
